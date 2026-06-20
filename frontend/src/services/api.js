@@ -55,7 +55,18 @@ export const api = {
   
   getDashboardSummary: () => apiFetch('/dashboard/summary'),
   
+  // Inbounds CRUD
   getInbounds: () => apiFetch('/inbounds/'),
+  createInbound: (data) => apiFetch('/inbounds/', { method: 'POST', body: JSON.stringify(data) }),
+  updateInbound: (id, data) => apiFetch(`/inbounds/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteInbound: (id) => apiFetch(`/inbounds/${id}`, { method: 'DELETE' }),
+  toggleInbound: (id) => apiFetch(`/inbounds/${id}/toggle`, { method: 'PATCH' }),
   
+  // Clients CRUD
   getClients: () => apiFetch('/clients/'),
+  createClient: (data) => apiFetch('/clients/', { method: 'POST', body: JSON.stringify(data) }),
+  updateClient: (id, data) => apiFetch(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteClient: (id) => apiFetch(`/clients/${id}`, { method: 'DELETE' }),
+  toggleClient: (id) => apiFetch(`/clients/${id}/toggle`, { method: 'PATCH' }),
+  resetClientTraffic: (id) => apiFetch(`/clients/${id}/reset-traffic`, { method: 'POST' }),
 };

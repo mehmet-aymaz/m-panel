@@ -51,6 +51,8 @@ def generate_config(db: Session) -> str:
             
         # Bind active clients
         if inbound.protocol.lower() in ["vless", "vmess", "trojan"]:
+            if inbound.protocol.lower() == "vless":
+                settings_dict["decryption"] = "none"
             clients_list = []
             for client in inbound.clients:
                 if is_client_active(client):

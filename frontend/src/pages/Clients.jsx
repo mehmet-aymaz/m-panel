@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { Plus, Edit2, Trash2, CheckCircle, XCircle, Info, RefreshCw, Key } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle, XCircle, Info, RefreshCw, Key, AlertCircle, RotateCcw } from 'lucide-react';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
   const [inbounds, setInbounds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form states
+  const [editMode, setEditMode] = useState(false);
+  const [clientId, setClientId] = useState(null);
   const [email, setEmail] = useState('');
   const [inboundId, setInboundId] = useState('');
   const [uuid, setUuid] = useState('');
@@ -16,125 +21,145 @@ export default function Clients() {
   const [expiryDays, setExpiryDays] = useState('30');
   const [enable, setEnable] = useState(true);
 
-  // Mock data for demonstration
-  const mockInbounds = [
-    { id: 1, remark: 'TR-VLESS-XTLS', protocol: 'vless' },
-    { id: 2, remark: 'DE-VMESS-WS', protocol: 'vmess' },
-    { id: 3, remark: 'NL-TROJAN-TLS', protocol: 'trojan' }
-  ];
+  const fetchData = async () => {
+    try {
+      // 1. Fetch inbounds
+      const inbData = await api.getInbounds();
+      setInbounds(inbData);
 
-  const mockClients = [
-    {
-      id: 1,
-      inbound_id: 1,
-      inbound_remark: 'TR-VLESS-XTLS',
-      email: 'mehmet@aymaz.com.tr',
-      uuid: '9e19a0d8-cc38-422d-8857-79b8fae72648',
-      total_gb: 150.0,
-      up: 15234567890,  // ~14.1 GB
-      down: 92345678901, // ~86.0 GB
-      expiry_time: Date.now() + 25 * 24 * 60 * 60 * 1000, // 25 days left
-      enable: true
-    },
-    {
-      id: 2,
-      inbound_id: 1,
-      inbound_remark: 'TR-VLESS-XTLS',
-      email: 'test_user_vless',
-      uuid: 'e77a285a-0ad6-4074-984b-0129a0081d6f',
-      total_gb: 50.0,
-      up: 25234567890,  // ~23.5 GB
-      down: 28345678901, // ~26.4 GB (Total ~49.9 GB - Limit exceeded)
-      expiry_time: Date.now() + 5 * 24 * 60 * 60 * 1000,
-      enable: true
-    },
-    {
-      id: 3,
-      inbound_id: 2,
-      inbound_remark: 'DE-VMESS-WS',
-      email: 'ahmet_vip',
-      uuid: '1e57c6b9-3850-4ff6-9da8-ec2b64d390a8',
-      total_gb: 0.0, // Sınırsız
-      up: 456789012,
-      down: 2345678901,
-      expiry_time: Date.now() - 2 * 24 * 60 * 60 * 1000, // Expired 2 days ago
-      enable: false
+      // 2. Fetch clients
+      const cliData = await api.getClients();
+      setClients(cliData);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Veriler yüklenemedi.');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch inbounds to show in the dropdown
-        try {
-          const inbData = await api.getInbounds();
-          if (inbData && inbData.inbounds && inbData.inbounds.length > 0) {
-            setInbounds(inbData.inbounds);
-          } else {
-            setInbounds(mockInbounds);
-          }
-        } catch (e) {
-          setInbounds(mockInbounds);
-        }
-
-        // Fetch clients
-        const data = await api.getClients();
-        if (data && data.clients && data.clients.length > 0) {
-          setClients(data.clients);
-        } else {
-          setClients(mockClients);
-        }
-      } catch (err) {
-        console.error('Clients could not be fetched:', err);
-        setClients(mockClients);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
   const generateUUID = () => {
-    // Generate simple RFC4122 v4 UUID
+    // Generate standard v4-like UUID
     const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
     const newUuid = `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
     setUuid(newUuid);
   };
 
-  const handleOpenModal = () => {
-    generateUUID();
-    if (inbounds.length > 0) {
-      setInboundId(inbounds[0].id.toString());
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleAddClient = (e) => {
-    e.preventDefault();
-    const selectedInbound = inbounds.find(i => i.id.toString() === inboundId.toString()) || { remark: 'Belirtilmedi' };
-    
-    const newClient = {
-      id: clients.length + 1,
-      inbound_id: parseInt(inboundId),
-      inbound_remark: selectedInbound.remark,
-      email,
-      uuid,
-      total_gb: parseFloat(totalGb),
-      up: 0,
-      down: 0,
-      expiry_time: expiryDays > 0 ? Date.now() + parseInt(expiryDays) * 24 * 60 * 60 * 1000 : 0,
-      enable
-    };
-
-    setClients([...clients, newClient]);
-    setIsModalOpen(false);
-
-    // Clear form
+  const handleOpenAddModal = () => {
+    setEditMode(false);
+    setClientId(null);
     setEmail('');
-    setUuid('');
+    generateUUID();
     setTotalGb('100');
     setExpiryDays('30');
     setEnable(true);
+    setModalError('');
+    
+    if (inbounds.length > 0) {
+      setInboundId(inbounds[0].id.toString());
+    } else {
+      setInboundId('');
+    }
+    
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (client) => {
+    setEditMode(true);
+    setClientId(client.id);
+    setEmail(client.email);
+    setInboundId(client.inbound_id.toString());
+    setUuid(client.uuid);
+    setTotalGb(client.total_gb.toString());
+    setExpiryDays(''); // Keep empty, indicating "don't change" unless they input a new value
+    setEnable(client.enable);
+    setModalError('');
+    setIsModalOpen(true);
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    setModalError('');
+    
+    if (!inboundId) {
+      setModalError('Lütfen kullanıcının bağlanacağı bir Inbound seçin.');
+      return;
+    }
+
+    setActionLoading(true);
+    
+    const payload = {
+      inbound_id: parseInt(inboundId),
+      email,
+      uuid,
+      total_gb: parseFloat(totalGb),
+      enable,
+      // Only send expiry_days if they provided one, or 0 if they set unlimited. Otherwise send null to keep unchanged
+      expiry_days: expiryDays !== '' ? parseInt(expiryDays) : null
+    };
+
+    try {
+      if (editMode) {
+        await api.updateClient(clientId, payload);
+      } else {
+        await api.createClient(payload);
+      }
+      await fetchData();
+      setIsModalOpen(false);
+    } catch (err) {
+      setModalError(err.message || 'Kullanıcı kaydedilemedi.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggle = async (client) => {
+    setActionLoading(true);
+    setError('');
+    try {
+      await api.toggleClient(client.id);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Kullanıcı durumu değiştirilemedi.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async (client) => {
+    if (!window.confirm(`"${client.email}" kullanıcısını silmek istediğinizden emin misiniz?\nBu işlem Xray config'inden kullanıcıyı kaldıracaktır.`)) {
+      return;
+    }
+    setActionLoading(true);
+    setError('');
+    try {
+      await api.deleteClient(client.id);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Kullanıcı silinemedi.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetTraffic = async (client) => {
+    if (!window.confirm(`"${client.email}" kullanıcısının bugüne kadar tükettiği yükleme/indirme trafiğini sıfırlamak istediğinizden emin misiniz?`)) {
+      return;
+    }
+    setActionLoading(true);
+    setError('');
+    try {
+      await api.resetClientTraffic(client.id);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Trafik sıfırlanamadı.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const formatTraffic = (bytes) => {
@@ -154,12 +179,12 @@ export default function Clients() {
   const isClientActive = (client) => {
     if (!client.enable) return false;
     
-    // Check expiry
+    // Expiry check
     if (client.expiry_time > 0 && Date.now() > client.expiry_time) {
       return false;
     }
 
-    // Check traffic limit
+    // Bandwidth check
     if (client.total_gb > 0) {
       const limit_bytes = client.total_gb * 1024 * 1024 * 1024;
       if (client.up + client.down >= limit_bytes) {
@@ -172,31 +197,29 @@ export default function Clients() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Alert banner indicating placeholder status */}
-      <div className="glass-card" style={{
-        padding: '1rem',
-        border: '1px solid rgba(6, 182, 212, 0.2)',
-        background: 'rgba(6, 182, 212, 0.05)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        marginBottom: '1.5rem'
-      }}>
-        <Info size={20} style={{ color: 'var(--accent-cyan)' }} />
-        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          <strong>Aşama 3 Bilgilendirmesi:</strong> Kullanıcı (Client) ekleme, silme ve düzenleme işlemleri şu an arayüzde taslak moddadır. Aşama 4 kapsamında backend tarafında CRUD işlemleri tamamlandıktan sonra gerçek Xray inbounds'larına bağlanacaktır.
-        </span>
-      </div>
+      {error && (
+        <div className="error-banner animate-fade-in" style={{ marginBottom: '1.5rem' }}>
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-        <button className="btn-primary" onClick={handleOpenModal}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem', alignItems: 'center', gap: '1rem' }}>
+        {actionLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-cyan)', fontSize: '0.85rem' }}>
+            <RefreshCw size={14} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite' }} />
+            <span>Yapılandırma Xray\'e uygulanıyor...</span>
+          </div>
+        )}
+        <button className="btn-primary" onClick={handleOpenAddModal} disabled={actionLoading || inbounds.length === 0}>
           <Plus size={16} style={{ marginRight: '5px' }} /> Yeni Kullanıcı Ekle
         </button>
       </div>
 
       {loading ? (
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
-          Yükleniyor...
+          <div className="brand-icon" style={{ width: '32px', height: '32px', animation: 'spin 1.5s linear infinite' }}>M</div>
+          <span style={{ marginLeft: '1rem', color: 'var(--text-secondary)' }}>Yükleniyor...</span>
         </div>
       ) : (
         <div className="table-container animate-fade-in">
@@ -214,72 +237,100 @@ export default function Clients() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => {
-                const active = isClientActive(client);
-                const isTrafficExceeded = client.total_gb > 0 && (client.up + client.down) >= (client.total_gb * 1024 * 1024 * 1024);
-                const isTimeExpired = client.expiry_time > 0 && Date.now() > client.expiry_time;
+              {clients.length === 0 ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                    {inbounds.length === 0 
+                      ? 'Kullanıcı ekleyebilmek için önce en az bir inbound bağlantısı oluşturmalısınız.' 
+                      : 'Kayıtlı kullanıcı bulunmuyor. Yeni bir tane ekleyerek başlayın.'}
+                  </td>
+                </tr>
+              ) : (
+                clients.map((client) => {
+                  const active = isClientActive(client);
+                  const isTrafficExceeded = client.total_gb > 0 && (client.up + client.down) >= (client.total_gb * 1024 * 1024 * 1024);
+                  const isTimeExpired = client.expiry_time > 0 && Date.now() > client.expiry_time;
 
-                return (
-                  <tr key={client.id}>
-                    <td style={{ fontWeight: '600' }}>{client.email}</td>
-                    <td>
-                      <span className="badge badge-info">{client.inbound_remark}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        <Key size={12} style={{ color: 'var(--accent-cyan)' }} />
-                        <span title={client.uuid}>{client.uuid.substring(0, 8)}...{client.uuid.substring(client.uuid.length - 8)}</span>
-                      </div>
-                    </td>
-                    <td>{formatTraffic(client.up + client.down)}</td>
-                    <td>{client.total_gb > 0 ? `${client.total_gb} GB` : 'Sınırsız'}</td>
-                    <td>{formatExpiry(client.expiry_time)}</td>
-                    <td>
-                      {active ? (
-                        <span className="badge badge-success">
-                          <CheckCircle size={10} style={{ marginRight: '3px' }} /> Aktif
-                        </span>
-                      ) : isTrafficExceeded ? (
-                        <span className="badge badge-warning" title="Kota Sınırı Aşıldı">
-                          Kota Aşıldı
-                        </span>
-                      ) : isTimeExpired ? (
-                        <span className="badge badge-warning" title="Süresi Doldu">
-                          Süre Doldu
-                        </span>
-                      ) : (
-                        <span className="badge badge-danger">
-                          <XCircle size={10} style={{ marginRight: '3px' }} /> Pasif
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="actions-cell">
-                        <button className="btn-icon" title="Düzenle">
-                          <Edit2 size={14} />
+                  return (
+                    <tr key={client.id}>
+                      <td style={{ fontWeight: '600' }}>{client.email}</td>
+                      <td>
+                        <span className="badge badge-info">{client.inbound_remark || 'Bilinmiyor'}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <Key size={12} style={{ color: 'var(--accent-cyan)' }} />
+                          <span title={client.uuid}>{client.uuid.substring(0, 8)}...{client.uuid.substring(client.uuid.length - 8)}</span>
+                        </div>
+                      </td>
+                      <td>{formatTraffic(client.up + client.down)}</td>
+                      <td>{client.total_gb > 0 ? `${client.total_gb} GB` : 'Sınırsız'}</td>
+                      <td>{formatExpiry(client.expiry_time)}</td>
+                      <td>
+                        <button 
+                          onClick={() => handleToggle(client)} 
+                          disabled={actionLoading}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          title="Oturumu Aktifleştir / Durdur"
+                        >
+                          {active ? (
+                            <span className="badge badge-success">
+                              <CheckCircle size={10} style={{ marginRight: '3px' }} /> Aktif
+                            </span>
+                          ) : isTrafficExceeded ? (
+                            <span className="badge badge-warning" title="Kota Sınırı Aşıldı">
+                              Kota Aşıldı
+                            </span>
+                          ) : isTimeExpired ? (
+                            <span className="badge badge-warning" title="Süresi Doldu">
+                              Süre Doldu
+                            </span>
+                          ) : (
+                            <span className="badge badge-danger">
+                              <XCircle size={10} style={{ marginRight: '3px' }} /> Pasif
+                            </span>
+                          )}
                         </button>
-                        <button className="btn-icon delete" title="Sil">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td>
+                        <div className="actions-cell">
+                          <button className="btn-icon" title="Trafiği Sıfırla" onClick={() => handleResetTraffic(client)} disabled={actionLoading}>
+                            <RotateCcw size={14} />
+                          </button>
+                          <button className="btn-icon" title="Düzenle" onClick={() => handleOpenEditModal(client)} disabled={actionLoading}>
+                            <Edit2 size={14} />
+                          </button>
+                          <button className="btn-icon delete" title="Sil" onClick={() => handleDelete(client)} disabled={actionLoading}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Add Client Modal */}
+      {/* Add / Edit Client Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content glass-card glow-cyan animate-fade-in">
+          <div className="modal-content glass-card glow-cyan animate-fade-in" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h2>Yeni Kullanıcı Ekle (Taslak)</h2>
-              <button className="modal-close" onClick={() => setIsModalOpen(false)}>×</button>
+              <h2>{editMode ? 'Kullanıcıyı Düzenle' : 'Yeni Kullanıcı Ekle'}</h2>
+              <button className="modal-close" onClick={() => setIsModalOpen(false)} disabled={actionLoading}>×</button>
             </div>
-            <form onSubmit={handleAddClient}>
+            
+            {modalError && (
+              <div className="error-banner">
+                <AlertCircle size={18} />
+                <span>{modalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleFormSubmit}>
               <div className="form-group">
                 <label className="form-label" htmlFor="modal-email">E-posta</label>
                 <input
@@ -290,20 +341,22 @@ export default function Clients() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={actionLoading}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="modal-inbound">Ekleneceği Inbound</label>
+                <label className="form-label" htmlFor="modal-inbound">Bağlanacağı Inbound</label>
                 <select
                   id="modal-inbound"
                   className="form-input"
                   value={inboundId}
                   onChange={(e) => setInboundId(e.target.value)}
                   required
+                  disabled={actionLoading}
                 >
                   {inbounds.map(i => (
-                    <option key={i.id} value={i.id}>{i.remark} ({i.protocol.toUpperCase()})</option>
+                    <option key={i.id} value={i.id}>{i.remark || i.port} ({i.protocol.toUpperCase()} - {i.port})</option>
                   ))}
                 </select>
               </div>
@@ -318,50 +371,62 @@ export default function Clients() {
                     value={uuid}
                     onChange={(e) => setUuid(e.target.value)}
                     required
+                    disabled={actionLoading}
                   />
-                  <button type="button" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }} onClick={generateUUID}>
+                  <button type="button" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }} onClick={generateUUID} disabled={actionLoading}>
                     <RefreshCw size={14} /> Üret
                   </button>
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="modal-totalgb">Kota Limiti (GB) - 0: Sınırsız</label>
-                <input
-                  id="modal-totalgb"
-                  type="number"
-                  className="form-input"
-                  value={totalGb}
-                  onChange={(e) => setTotalGb(e.target.value)}
-                  required
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modal-totalgb">Kota Limiti (GB) - 0: Sınırsız</label>
+                  <input
+                    id="modal-totalgb"
+                    type="number"
+                    step="any"
+                    className="form-input"
+                    value={totalGb}
+                    onChange={(e) => setTotalGb(e.target.value)}
+                    required
+                    disabled={actionLoading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modal-expiry">
+                    {editMode ? 'Süre Ekle (Gün) - Boş bırak: Değişmesin' : 'Süre (Gün) - 0: Sınırsız'}
+                  </label>
+                  <input
+                    id="modal-expiry"
+                    type="number"
+                    className="form-input"
+                    placeholder={editMode ? 'Değişiklik yok' : 'örn. 30'}
+                    value={expiryDays}
+                    onChange={(e) => setExpiryDays(e.target.value)}
+                    required={!editMode}
+                    disabled={actionLoading}
+                  />
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="modal-expiry">Geçerlilik Süresi (Gün) - 0: Sınırsız</label>
-                <input
-                  id="modal-expiry"
-                  type="number"
-                  className="form-input"
-                  value={expiryDays}
-                  onChange={(e) => setExpiryDays(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '1.25rem' }}>
                 <input
                   id="modal-enable"
                   type="checkbox"
                   checked={enable}
                   onChange={(e) => setEnable(e.target.checked)}
+                  disabled={actionLoading}
                 />
-                <label className="form-label" htmlFor="modal-enable" style={{ cursor: 'pointer' }}>Başlangıçta Aktif Olsun</label>
+                <label className="form-label" htmlFor="modal-enable" style={{ cursor: 'pointer' }}>Hesap Aktif</label>
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>İptal</button>
-                <button type="submit" className="btn-primary">Kaydet</button>
+                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)} disabled={actionLoading}>İptal</button>
+                <button type="submit" className="btn-primary" disabled={actionLoading}>
+                  {actionLoading ? 'Xray\'e Kaydediliyor...' : 'Kaydet'}
+                </button>
               </div>
             </form>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { Plus, Edit2, Trash2, CheckCircle, XCircle, Info, RefreshCw, Key, AlertCircle, RotateCcw } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle, XCircle, Info, RefreshCw, Key, AlertCircle, RotateCcw, Copy } from 'lucide-react';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -52,6 +52,78 @@ export default function Clients() {
     const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
     const newUuid = `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
     setUuid(newUuid);
+  };
+
+  const generateVlessLink = (client) => {
+    const inbound = inbounds.find(i => i.id === client.inbound_id);
+    if (!inbound) return '';
+
+    const host = window.location.hostname;
+    const port = inbound.port;
+    const uuid = client.uuid;
+    const remark = `${inbound.remark || 'inbound'}-${client.email}`;
+    const remark_encoded = encodeURIComponent(remark);
+
+    const params = {
+      type: inbound.network || 'ws',
+      security: inbound.security || 'tls',
+      encryption: 'none'
+    };
+
+    if (params.security === 'tls' || params.security === 'reality') {
+      if (inbound.sni) {
+        params.sni = inbound.sni;
+      }
+    }
+
+    if (params.type === 'ws') {
+      params.path = inbound.ws_path || '/';
+      if (inbound.ws_host) {
+        params.host = inbound.ws_host;
+      }
+    } else if (params.type === 'grpc') {
+      if (inbound.grpc_service_name) {
+        params.serviceName = inbound.grpc_service_name;
+      }
+    }
+
+    if (params.security === 'reality') {
+      let customStream = {};
+      try {
+        customStream = inbound.stream_settings ? JSON.parse(inbound.stream_settings) : {};
+      } catch (e) {
+        customStream = {};
+      }
+      
+      const realitySettings = customStream.realitySettings || {};
+      params.pbk = realitySettings.publicKey || 'FEd7tNvmNJdVrZIG-e8EUOZn3acrkHWYu9AYWlF7WCE';
+      
+      const serverNames = realitySettings.serverNames || [];
+      if (serverNames.length > 0) {
+        params.sni = serverNames[0];
+      } else if (inbound.sni) {
+        params.sni = inbound.sni;
+      } else {
+        params.sni = 'google.com';
+      }
+      
+      params.fp = realitySettings.fingerprint || 'chrome';
+      
+      const shortIds = realitySettings.shortIds || [];
+      if (shortIds.length > 0) {
+        params.sid = shortIds[0];
+      } else {
+        params.sid = '0123456789abcdef';
+      }
+      
+      params.flow = client.flow || 'xtls-rprx-vision';
+    }
+
+    const queryStr = Object.keys(params)
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+      .join('&');
+
+    return `vless://${uuid}@${host}:${port}?${queryStr}#${remark_encoded}`;
   };
 
   const handleOpenAddModal = () => {
@@ -301,9 +373,22 @@ export default function Clients() {
                         )}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          <Key size={12} style={{ color: 'var(--accent-cyan)' }} />
-                          <span title={client.uuid}>{client.uuid.substring(0, 8)}...{client.uuid.substring(client.uuid.length - 8)}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            <Key size={12} style={{ color: 'var(--accent-cyan)' }} />
+                            <span title={client.uuid}>{client.uuid.substring(0, 8)}...{client.uuid.substring(client.uuid.length - 8)}</span>
+                          </div>
+                          <button 
+                            className="btn-secondary" 
+                            style={{ padding: '2px 6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}
+                            onClick={() => {
+                              const link = generateVlessLink(client);
+                              navigator.clipboard.writeText(link);
+                              alert("VLESS bağlantı linki panoya kopyalandı!");
+                            }}
+                          >
+                            <Copy size={10} /> Linki Kopyala
+                          </button>
                         </div>
                       </td>
                       <td>

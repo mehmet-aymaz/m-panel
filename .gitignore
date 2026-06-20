@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Production build outputs
+dist/
+build/
+
+# Local env files
+.env
+.env.local
+.env.*.local
+app/.env
+
+# Local temp files / system files
+.DS_Store
+Thumbs.db
+*.log
+scratch/

@@ -44,11 +44,66 @@ def generate_config(db: Session) -> str:
         except Exception:
             settings_dict = {}
             
+        # Parse stream_settings column
         try:
-            stream_settings_dict = json.loads(inbound.stream_settings) if inbound.stream_settings else {}
+            custom_stream = json.loads(inbound.stream_settings) if inbound.stream_settings else {}
         except Exception:
-            stream_settings_dict = {}
+            custom_stream = {}
+
+        # Build dynamic streamSettings
+        dynamic_stream = {
+            "network": inbound.network or "ws",
+            "security": inbound.security or "tls"
+        }
+
+        # Handle Security
+        if dynamic_stream["security"] == "tls":
+            tls_settings = custom_stream.get("tlsSettings", {})
+            if inbound.sni:
+                tls_settings["serverName"] = inbound.sni
+            dynamic_stream["tlsSettings"] = tls_settings
+        elif dynamic_stream["security"] == "reality":
+            reality_settings = custom_stream.get("realitySettings", {})
+            # Ensure required reality fields exist, otherwise provide default placeholders
+            if "dest" not in reality_settings:
+                reality_settings["dest"] = f"{inbound.sni}:443" if inbound.sni else "google.com:443"
+            if "privateKey" not in reality_settings:
+                reality_settings["privateKey"] = "cEXIYJ0dmzZ34LC9yAbIn4doJ3CcjrH86IMFWzEqSXM"
+            if "shortIds" not in reality_settings:
+                reality_settings["shortIds"] = ["0123456789abcdef"]
             
+            # For server-side Reality, serverNames (array of strings) is required.
+            if "serverNames" not in reality_settings:
+                reality_settings["serverNames"] = [inbound.sni] if inbound.sni else ["google.com"]
+            elif inbound.sni and inbound.sni not in reality_settings["serverNames"]:
+                reality_settings["serverNames"].append(inbound.sni)
+                
+            dynamic_stream["realitySettings"] = reality_settings
+        elif dynamic_stream["security"] == "none":
+            dynamic_stream.pop("tlsSettings", None)
+            dynamic_stream.pop("realitySettings", None)
+
+        # Handle Network
+        if dynamic_stream["network"] == "ws":
+            ws_settings = custom_stream.get("wsSettings", {})
+            ws_settings["path"] = inbound.ws_path or "/"
+            if inbound.ws_host:
+                ws_settings["headers"] = ws_settings.get("headers", {})
+                ws_settings["headers"]["Host"] = inbound.ws_host
+            dynamic_stream["wsSettings"] = ws_settings
+        elif dynamic_stream["network"] == "grpc":
+            grpc_settings = custom_stream.get("grpcSettings", {})
+            grpc_settings["serviceName"] = inbound.grpc_service_name or ""
+            dynamic_stream["grpcSettings"] = grpc_settings
+        elif dynamic_stream["network"] == "tcp":
+            tcp_settings = custom_stream.get("tcpSettings", {})
+            dynamic_stream["tcpSettings"] = tcp_settings
+
+        # Merge other custom stream settings
+        for k, v in custom_stream.items():
+            if k not in dynamic_stream:
+                dynamic_stream[k] = v
+
         # Bind active clients
         if inbound.protocol.lower() in ["vless", "vmess", "trojan"]:
             if inbound.protocol.lower() == "vless":
@@ -57,33 +112,44 @@ def generate_config(db: Session) -> str:
             for client in inbound.clients:
                 if is_client_active(client):
                     if inbound.protocol.lower() == "vless":
-                        clients_list.append({
+                        client_dict = {
                             "id": client.uuid,
                             "email": client.email,
                             "level": 0
-                        })
+                        }
+                        if client.flow:
+                            client_dict["flow"] = client.flow
+                        if client.limit_ip and client.limit_ip > 0:
+                            client_dict["limitIp"] = client.limit_ip
+                        clients_list.append(client_dict)
                     elif inbound.protocol.lower() == "vmess":
-                        clients_list.append({
+                        client_dict = {
                             "id": client.uuid,
                             "email": client.email,
                             "level": 0,
                             "alterId": 0
-                        })
+                        }
+                        if client.limit_ip and client.limit_ip > 0:
+                            client_dict["limitIp"] = client.limit_ip
+                        clients_list.append(client_dict)
                     elif inbound.protocol.lower() == "trojan":
-                        clients_list.append({
+                        client_dict = {
                             "password": client.uuid,
                             "email": client.email,
                             "level": 0
-                        })
+                        }
+                        if client.limit_ip and client.limit_ip > 0:
+                            client_dict["limitIp"] = client.limit_ip
+                        clients_list.append(client_dict)
             settings_dict["clients"] = clients_list
             
         xray_inbound = {
             "port": inbound.port,
             "protocol": inbound.protocol.lower(),
             "settings": settings_dict,
-            "streamSettings": stream_settings_dict,
+            "streamSettings": dynamic_stream,
             "sniffing": {
-                "enabled": True,
+                "enabled": bool(inbound.sniffing_enabled),
                 "destOverride": ["http", "tls"]
             }
         }

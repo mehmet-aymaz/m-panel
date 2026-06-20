@@ -17,8 +17,13 @@ export default function Clients() {
   const [email, setEmail] = useState('');
   const [inboundId, setInboundId] = useState('');
   const [uuid, setUuid] = useState('');
+  const [uuidMode, setUuidMode] = useState('auto'); // 'auto' or 'manual'
   const [totalGb, setTotalGb] = useState('100');
   const [expiryDays, setExpiryDays] = useState('30');
+  const [limitIp, setLimitIp] = useState('0');
+  const [tgId, setTgId] = useState('');
+  const [comment, setComment] = useState('');
+  const [flow, setFlow] = useState('');
   const [enable, setEnable] = useState(true);
 
   const fetchData = async () => {
@@ -53,9 +58,14 @@ export default function Clients() {
     setEditMode(false);
     setClientId(null);
     setEmail('');
+    setUuidMode('auto');
     generateUUID();
     setTotalGb('100');
     setExpiryDays('30');
+    setLimitIp('0');
+    setTgId('');
+    setComment('');
+    setFlow('');
     setEnable(true);
     setModalError('');
     
@@ -74,8 +84,13 @@ export default function Clients() {
     setEmail(client.email);
     setInboundId(client.inbound_id.toString());
     setUuid(client.uuid);
+    setUuidMode('manual');
     setTotalGb(client.total_gb.toString());
     setExpiryDays(''); // Keep empty, indicating "don't change" unless they input a new value
+    setLimitIp(client.limit_ip ? client.limit_ip.toString() : '0');
+    setTgId(client.tg_id || '');
+    setComment(client.comment || '');
+    setFlow(client.flow || '');
     setEnable(client.enable);
     setModalError('');
     setIsModalOpen(true);
@@ -92,14 +107,24 @@ export default function Clients() {
 
     setActionLoading(true);
     
+    // Determine if flow is valid for selected inbound
+    const selectedInbound = inbounds.find(i => i.id.toString() === inboundId);
+    const isVlessTlsOrReality = selectedInbound && 
+      selectedInbound.protocol.toLowerCase() === 'vless' && 
+      (selectedInbound.security.toLowerCase() === 'tls' || selectedInbound.security.toLowerCase() === 'reality');
+
     const payload = {
       inbound_id: parseInt(inboundId),
       email,
-      uuid,
+      uuid: uuidMode === 'auto' ? uuid : uuid.trim(),
       total_gb: parseFloat(totalGb),
       enable,
       // Only send expiry_days if they provided one, or 0 if they set unlimited. Otherwise send null to keep unchanged
-      expiry_days: expiryDays !== '' ? parseInt(expiryDays) : null
+      expiry_days: expiryDays !== '' ? parseInt(expiryDays) : null,
+      limit_ip: parseInt(limitIp) || 0,
+      tg_id: tgId.trim() || null,
+      comment: comment.trim() || null,
+      flow: isVlessTlsOrReality ? (flow || null) : null
     };
 
     try {
@@ -229,6 +254,7 @@ export default function Clients() {
                 <th>E-posta</th>
                 <th>Inbound</th>
                 <th>UUID / Şifre</th>
+                <th>IP Sınırı</th>
                 <th>Kullanılan Trafik</th>
                 <th>Kota Sınırı</th>
                 <th>Son Kullanma</th>
@@ -239,7 +265,7 @@ export default function Clients() {
             <tbody>
               {clients.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                     {inbounds.length === 0 
                       ? 'Kullanıcı ekleyebilmek için önce en az bir inbound bağlantısı oluşturmalısınız.' 
                       : 'Kayıtlı kullanıcı bulunmuyor. Yeni bir tane ekleyerek başlayın.'}
@@ -253,15 +279,41 @@ export default function Clients() {
 
                   return (
                     <tr key={client.id}>
-                      <td style={{ fontWeight: '600' }}>{client.email}</td>
+                      <td style={{ fontWeight: '600' }}>
+                        <div>{client.email}</div>
+                        {client.tg_id && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal', marginTop: '0.15rem' }}>
+                            TG: {client.tg_id}
+                          </div>
+                        )}
+                        {client.comment && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 'normal', marginTop: '0.1rem' }}>
+                            {client.comment}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <span className="badge badge-info">{client.inbound_remark || 'Bilinmiyor'}</span>
+                        {client.flow && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem', fontFamily: 'monospace' }}>
+                            {client.flow}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                           <Key size={12} style={{ color: 'var(--accent-cyan)' }} />
                           <span title={client.uuid}>{client.uuid.substring(0, 8)}...{client.uuid.substring(client.uuid.length - 8)}</span>
                         </div>
+                      </td>
+                      <td>
+                        {client.limit_ip > 0 ? (
+                          <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontSize: '0.8rem' }}>
+                            {client.limit_ip} IP
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-secondary)' }}>Sınırsız</span>
+                        )}
                       </td>
                       <td>{formatTraffic(client.up + client.down)}</td>
                       <td>{client.total_gb > 0 ? `${client.total_gb} GB` : 'Sınırsız'}</td>
@@ -362,21 +414,61 @@ export default function Clients() {
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="modal-uuid">Kullanıcı UUID / Şifre</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <label className="form-label">UUID / Şifre Giriş Yöntemi</label>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    <input
+                      type="radio"
+                      name="uuidMode"
+                      value="auto"
+                      checked={uuidMode === 'auto'}
+                      onChange={() => {
+                        setUuidMode('auto');
+                        generateUUID();
+                      }}
+                      disabled={actionLoading}
+                    />
+                    Otomatik Üret
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    <input
+                      type="radio"
+                      name="uuidMode"
+                      value="manual"
+                      checked={uuidMode === 'manual'}
+                      onChange={() => setUuidMode('manual')}
+                      disabled={actionLoading}
+                    />
+                    Manuel Gir
+                  </label>
+                </div>
+                
+                {uuidMode === 'manual' ? (
                   <input
                     id="modal-uuid"
                     type="text"
                     className="form-input"
+                    placeholder="Geçerli bir UUID girin"
                     value={uuid}
                     onChange={(e) => setUuid(e.target.value)}
                     required
                     disabled={actionLoading}
                   />
-                  <button type="button" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }} onClick={generateUUID} disabled={actionLoading}>
-                    <RefreshCw size={14} /> Üret
-                  </button>
-                </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      id="modal-uuid"
+                      type="text"
+                      className="form-input"
+                      value={uuid}
+                      readOnly
+                      disabled
+                    />
+                    <button type="button" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }} onClick={generateUUID} disabled={actionLoading}>
+                      <RefreshCw size={14} /> Yeni Üret
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -409,6 +501,72 @@ export default function Clients() {
                     disabled={actionLoading}
                   />
                 </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modal-limitip">IP Limiti (0: Sınırsız)</label>
+                  <input
+                    id="modal-limitip"
+                    type="number"
+                    className="form-input"
+                    placeholder="örn. 2"
+                    value={limitIp}
+                    onChange={(e) => setLimitIp(e.target.value)}
+                    required
+                    disabled={actionLoading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modal-tgid">Telegram ID (Opsiyonel)</label>
+                  <input
+                    id="modal-tgid"
+                    type="text"
+                    className="form-input"
+                    placeholder="örn. 12345678"
+                    value={tgId}
+                    onChange={(e) => setTgId(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                </div>
+              </div>
+
+              {/* Conditional rendering of Flow settings based on selected inbound */}
+              {(() => {
+                const selectedInbound = inbounds.find(i => i.id.toString() === inboundId);
+                const isVlessTlsOrReality = selectedInbound && 
+                  selectedInbound.protocol.toLowerCase() === 'vless' && 
+                  (selectedInbound.security.toLowerCase() === 'tls' || selectedInbound.security.toLowerCase() === 'reality');
+                
+                return isVlessTlsOrReality ? (
+                  <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                    <label className="form-label" htmlFor="modal-flow">Akış Kontrolü (Flow)</label>
+                    <select
+                      id="modal-flow"
+                      className="form-input"
+                      value={flow}
+                      onChange={(e) => setFlow(e.target.value)}
+                      disabled={actionLoading}
+                    >
+                      <option value="">Boş (Varsayılan)</option>
+                      <option value="xtls-rprx-vision">xtls-rprx-vision (Tavsiye Edilen)</option>
+                    </select>
+                  </div>
+                ) : null;
+              })()}
+
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                <label className="form-label" htmlFor="modal-comment">Not / Açıklama (Opsiyonel)</label>
+                <textarea
+                  id="modal-comment"
+                  className="form-input"
+                  rows={2}
+                  placeholder="Kullanıcı hakkında notlar..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  disabled={actionLoading}
+                />
               </div>
 
               <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '1.25rem' }}>

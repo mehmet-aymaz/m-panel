@@ -17,6 +17,17 @@ export default function Inbounds() {
   const [protocol, setProtocol] = useState('vless');
   const [port, setPort] = useState('');
   const [enable, setEnable] = useState(true);
+  
+  // Extended fields
+  const [network, setNetwork] = useState('ws');
+  const [security, setSecurity] = useState('tls');
+  const [sni, setSni] = useState('');
+  const [wsPath, setWsPath] = useState('/');
+  const [wsHost, setWsHost] = useState('');
+  const [sniffingEnabled, setSniffingEnabled] = useState(true);
+  const [grpcServiceName, setGrpcServiceName] = useState('');
+  
+  // Advanced raw settings
   const [settings, setSettings] = useState('');
   const [streamSettings, setStreamSettings] = useState('');
 
@@ -58,11 +69,18 @@ export default function Inbounds() {
     setProtocol('vless');
     setPort('');
     setEnable(true);
+    
+    // Reset extended fields
+    setNetwork('ws');
+    setSecurity('tls');
+    setSni('');
+    setWsPath('/');
+    setWsHost('');
+    setSniffingEnabled(true);
+    setGrpcServiceName('');
+
     setSettings(JSON.stringify({ clients: [] }, null, 2));
-    setStreamSettings(JSON.stringify({
-      network: "tcp",
-      security: "none"
-    }, null, 2));
+    setStreamSettings('');
     setModalError('');
     setIsModalOpen(true);
   };
@@ -75,6 +93,15 @@ export default function Inbounds() {
     setPort(inbound.port.toString());
     setEnable(inbound.enable);
     
+    // Set extended fields
+    setNetwork(inbound.network || 'ws');
+    setSecurity(inbound.security || 'tls');
+    setSni(inbound.sni || '');
+    setWsPath(inbound.ws_path || '/');
+    setWsHost(inbound.ws_host || '');
+    setSniffingEnabled(inbound.sniffing_enabled);
+    setGrpcServiceName(inbound.grpc_service_name || '');
+
     // Pretty print settings JSON
     try {
       const parsedSettings = inbound.settings ? JSON.parse(inbound.settings) : {};
@@ -97,6 +124,13 @@ export default function Inbounds() {
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setModalError('');
+
+    // Validation: gRPC needs service name
+    if (network === 'grpc' && !grpcServiceName.trim()) {
+      setModalError('gRPC network protokolü için Service Name alanı zorunludur.');
+      return;
+    }
+
     setActionLoading(true);
 
     // Validate JSON fields if not empty
@@ -129,6 +163,13 @@ export default function Inbounds() {
       protocol: protocol.toLowerCase(),
       port: parseInt(port),
       enable,
+      network: network.toLowerCase(),
+      security: security.toLowerCase(),
+      sni: (security === 'tls' || security === 'reality') ? sni : null,
+      ws_path: network === 'ws' ? wsPath : null,
+      ws_host: network === 'ws' ? wsHost : null,
+      sniffing_enabled: sniffingEnabled,
+      grpc_service_name: network === 'grpc' ? grpcServiceName : null,
       settings: parsedSettings,
       stream_settings: parsedStream
     };
@@ -211,10 +252,10 @@ export default function Inbounds() {
                 <th>Remark</th>
                 <th>Protokol</th>
                 <th>Port</th>
+                <th>Network</th>
+                <th>Security</th>
                 <th>Yükleme (Up)</th>
                 <th>İndirme (Down)</th>
-                <th>Sınır (Total)</th>
-                <th>Süre</th>
                 <th>Kullanıcılar</th>
                 <th>Durum</th>
                 <th>İşlemler</th>
@@ -235,10 +276,21 @@ export default function Inbounds() {
                       <span className="badge badge-info">{inbound.protocol.toUpperCase()}</span>
                     </td>
                     <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{inbound.port}</td>
+                    <td>
+                      <span className="badge badge-info" style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)' }}>
+                        {inbound.network ? inbound.network.toUpperCase() : 'WS'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="badge" style={{ 
+                        background: inbound.security === 'none' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
+                        color: inbound.security === 'none' ? 'var(--danger)' : 'var(--success)'
+                      }}>
+                        {inbound.security ? inbound.security.toUpperCase() : 'TLS'}
+                      </span>
+                    </td>
                     <td>{formatTraffic(inbound.up)}</td>
                     <td>{formatTraffic(inbound.down)}</td>
-                    <td>{formatTraffic(inbound.total)}</td>
-                    <td>{formatExpiry(inbound.expiry_time)}</td>
                     <td>
                       <span className="badge badge-info" style={{ borderRadius: '4px' }}>
                         {inbound.clients ? inbound.clients.length : 0} Kullanıcı
@@ -283,7 +335,7 @@ export default function Inbounds() {
       {/* Add / Edit Inbound Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content glass-card glow-cyan animate-fade-in" style={{ maxWidth: '600px' }}>
+          <div className="modal-content glass-card glow-cyan animate-fade-in" style={{ maxWidth: '650px' }}>
             <div className="modal-header">
               <h2>{editMode ? 'Inbound Yapılandırmasını Düzenle' : 'Yeni Inbound Ekle'}</h2>
               <button className="modal-close" onClick={() => setIsModalOpen(false)} disabled={actionLoading}>×</button>
@@ -335,7 +387,7 @@ export default function Inbounds() {
                     className="form-input"
                     value={protocol}
                     onChange={(e) => setProtocol(e.target.value)}
-                    disabled={actionLoading || editMode} // Disable protocol edit after creation
+                    disabled={actionLoading || editMode}
                   >
                     <option value="vless">VLESS</option>
                     <option value="vmess">VMess</option>
@@ -355,30 +407,136 @@ export default function Inbounds() {
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginTop: '1rem' }}>
-                <label className="form-label" htmlFor="modal-settings">İnce Ayarlar (Settings JSON)</label>
-                <textarea
-                  id="modal-settings"
-                  className="form-input"
-                  rows={4}
-                  style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
-                  value={settings}
-                  onChange={(e) => setSettings(e.target.value)}
-                  disabled={actionLoading}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modal-network">İletim Protokolü (Network)</label>
+                  <select
+                    id="modal-network"
+                    className="form-input"
+                    value={network}
+                    onChange={(e) => setNetwork(e.target.value)}
+                    disabled={actionLoading}
+                  >
+                    <option value="ws">WS (WebSocket)</option>
+                    <option value="tcp">TCP</option>
+                    <option value="grpc">gRPC</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modal-security">Güvenlik (Security)</label>
+                  <select
+                    id="modal-security"
+                    className="form-input"
+                    value={security}
+                    onChange={(e) => setSecurity(e.target.value)}
+                    disabled={actionLoading}
+                  >
+                    <option value="tls">TLS</option>
+                    <option value="reality">Reality</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="modal-stream">Yayın Ayarları (Stream Settings JSON)</label>
-                <textarea
-                  id="modal-stream"
-                  className="form-input"
-                  rows={4}
-                  style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
-                  value={streamSettings}
-                  onChange={(e) => setStreamSettings(e.target.value)}
+              {/* Conditional Rendering of fields */}
+              {(security === 'tls' || security === 'reality') && (
+                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                  <label className="form-label" htmlFor="modal-sni">SNI (Server Name Indication)</label>
+                  <input
+                    id="modal-sni"
+                    type="text"
+                    className="form-input"
+                    placeholder="örn. c.whatsapp.net"
+                    value={sni}
+                    onChange={(e) => setSni(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                </div>
+              )}
+
+              {network === 'ws' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="modal-wspath">WebSocket Path</label>
+                    <input
+                      id="modal-wspath"
+                      type="text"
+                      className="form-input"
+                      placeholder="/"
+                      value={wsPath}
+                      onChange={(e) => setWsPath(e.target.value)}
+                      disabled={actionLoading}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="modal-wshost">WebSocket Host Header</label>
+                    <input
+                      id="modal-wshost"
+                      type="text"
+                      className="form-input"
+                      placeholder="örn. panel.mehmetaymaz.com.tr"
+                      value={wsHost}
+                      onChange={(e) => setWsHost(e.target.value)}
+                      disabled={actionLoading}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {network === 'grpc' && (
+                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                  <label className="form-label" htmlFor="modal-grpcname">gRPC Service Name</label>
+                  <input
+                    id="modal-grpcname"
+                    type="text"
+                    className="form-input"
+                    placeholder="örn. MyGRPCService"
+                    value={grpcServiceName}
+                    onChange={(e) => setGrpcServiceName(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                </div>
+              )}
+
+              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                <input
+                  id="modal-sniffing"
+                  type="checkbox"
+                  checked={sniffingEnabled}
+                  onChange={(e) => setSniffingEnabled(e.target.checked)}
                   disabled={actionLoading}
                 />
+                <label className="form-label" htmlFor="modal-sniffing" style={{ cursor: 'pointer' }}>Traffic Sniffing Aktif (Maksimum Algılama)</label>
+              </div>
+
+              {/* Advanced JSON block toggles */}
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.25rem' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label" htmlFor="modal-settings">İnce Ayarlar (Settings JSON)</label>
+                  <textarea
+                    id="modal-settings"
+                    className="form-input"
+                    rows={3}
+                    style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                    value={settings}
+                    onChange={(e) => setSettings(e.target.value)}
+                    disabled={actionLoading}
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label" htmlFor="modal-stream">Yayın Ayarları (Stream Settings JSON)</label>
+                  <textarea
+                    id="modal-stream"
+                    className="form-input"
+                    rows={3}
+                    style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                    value={streamSettings}
+                    onChange={(e) => setStreamSettings(e.target.value)}
+                    placeholder="Ekstra JSON özellikleri..."
+                    disabled={actionLoading}
+                  />
+                </div>
               </div>
 
               <div className="modal-footer">

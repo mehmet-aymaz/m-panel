@@ -23,6 +23,13 @@ class Inbound(Base):
     down = Column(BigInteger, default=0, nullable=False)
     total = Column(BigInteger, default=0, nullable=False)
     expiry_time = Column(BigInteger, default=0, nullable=False)
+    network = Column(String, default="ws", nullable=False)
+    security = Column(String, default="tls", nullable=False)
+    sni = Column(String, nullable=True)
+    ws_path = Column(String, default="/", nullable=True)
+    ws_host = Column(String, nullable=True)
+    sniffing_enabled = Column(Boolean, default=True, nullable=False)
+    grpc_service_name = Column(String, nullable=True)
     
     # Relationship to clients
     clients = relationship("Client", back_populates="inbound", cascade="all, delete-orphan")
@@ -39,6 +46,10 @@ class Client(Base):
     up = Column(BigInteger, default=0, nullable=False)
     down = Column(BigInteger, default=0, nullable=False)
     enable = Column(Boolean, default=True, nullable=False)
+    limit_ip = Column(Integer, default=0, nullable=False)
+    tg_id = Column(String, nullable=True)
+    comment = Column(String, nullable=True)
+    flow = Column(String, nullable=True)
     
     # Relationship to inbound
     inbound = relationship("Inbound", back_populates="clients")

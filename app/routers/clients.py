@@ -19,6 +19,10 @@ class ClientBase(BaseModel):
     total_gb: Optional[float] = 0.0
     expiry_days: Optional[int] = 0  # 0 means unlimited
     enable: Optional[bool] = True
+    limit_ip: Optional[int] = 0
+    tg_id: Optional[str] = None
+    comment: Optional[str] = None
+    flow: Optional[str] = None
 
 class ClientCreate(ClientBase):
     pass
@@ -30,6 +34,10 @@ class ClientUpdate(BaseModel):
     total_gb: Optional[float] = None
     expiry_days: Optional[int] = None  # 0 means unlimited, None means don't change
     enable: Optional[bool] = None
+    limit_ip: Optional[int] = None
+    tg_id: Optional[str] = None
+    comment: Optional[str] = None
+    flow: Optional[str] = None
 
 class ClientResponse(BaseModel):
     id: int
@@ -42,6 +50,10 @@ class ClientResponse(BaseModel):
     up: int
     down: int
     enable: bool
+    limit_ip: int
+    tg_id: Optional[str]
+    comment: Optional[str]
+    flow: Optional[str]
 
     class Config:
         from_attributes = True
@@ -50,7 +62,6 @@ class ClientResponse(BaseModel):
 def list_clients(db: Session = Depends(get_db), current_user: models.AdminUser = Depends(get_current_user)):
     clients = db.query(models.Client).all()
     
-    # Map relation to response format
     result = []
     for client in clients:
         inbound = db.query(models.Inbound).filter(models.Inbound.id == client.inbound_id).first()
@@ -66,7 +77,11 @@ def list_clients(db: Session = Depends(get_db), current_user: models.AdminUser =
             expiry_time=client.expiry_time,
             up=client.up,
             down=client.down,
-            enable=client.enable
+            enable=client.enable,
+            limit_ip=client.limit_ip,
+            tg_id=client.tg_id,
+            comment=client.comment,
+            flow=client.flow
         ))
     return result
 
@@ -92,9 +107,17 @@ def create_client(
             detail=f"Inbound ID {client_in.inbound_id} bulunamadı."
         )
 
-    # Auto generate UUID if not provided
+    # Validate UUID if provided
     client_uuid = client_in.uuid
-    if not client_uuid:
+    if client_uuid:
+        try:
+            uuid.UUID(client_uuid)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Geçersiz UUID formatı. Lütfen geçerli bir UUID girin."
+            )
+    else:
         client_uuid = str(uuid.uuid4())
 
     # Convert expiry_days to expiry_time timestamp in milliseconds
@@ -109,7 +132,11 @@ def create_client(
         uuid=client_uuid,
         total_gb=client_in.total_gb if client_in.total_gb is not None else 0.0,
         expiry_time=expiry_time,
-        enable=client_in.enable if client_in.enable is not None else True
+        enable=client_in.enable if client_in.enable is not None else True,
+        limit_ip=client_in.limit_ip if client_in.limit_ip is not None else 0,
+        tg_id=client_in.tg_id,
+        comment=client_in.comment,
+        flow=client_in.flow
     )
 
     db.add(db_client)
@@ -138,7 +165,11 @@ def create_client(
         expiry_time=db_client.expiry_time,
         up=db_client.up,
         down=db_client.down,
-        enable=db_client.enable
+        enable=db_client.enable,
+        limit_ip=db_client.limit_ip,
+        tg_id=db_client.tg_id,
+        comment=db_client.comment,
+        flow=db_client.flow
     )
 
 @router.put("/{id}", response_model=ClientResponse)
@@ -175,13 +206,30 @@ def update_client(
             )
         db_client.inbound_id = client_in.inbound_id
 
-    # Update other fields
+    # Validate UUID if updated
     if client_in.uuid is not None:
+        try:
+            uuid.UUID(client_in.uuid)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Geçersiz UUID formatı. Lütfen geçerli bir UUID girin."
+            )
         db_client.uuid = client_in.uuid
+
+    # Update other fields
     if client_in.total_gb is not None:
         db_client.total_gb = client_in.total_gb
     if client_in.enable is not None:
         db_client.enable = client_in.enable
+    if client_in.limit_ip is not None:
+        db_client.limit_ip = client_in.limit_ip
+    if client_in.tg_id is not None:
+        db_client.tg_id = client_in.tg_id
+    if client_in.comment is not None:
+        db_client.comment = client_in.comment
+    if client_in.flow is not None:
+        db_client.flow = client_in.flow
 
     # Expiry updates
     if client_in.expiry_days is not None:
@@ -215,7 +263,11 @@ def update_client(
         expiry_time=db_client.expiry_time,
         up=db_client.up,
         down=db_client.down,
-        enable=db_client.enable
+        enable=db_client.enable,
+        limit_ip=db_client.limit_ip,
+        tg_id=db_client.tg_id,
+        comment=db_client.comment,
+        flow=db_client.flow
     )
 
 @router.delete("/{id}")
@@ -286,7 +338,11 @@ def toggle_client(
         expiry_time=db_client.expiry_time,
         up=db_client.up,
         down=db_client.down,
-        enable=db_client.enable
+        enable=db_client.enable,
+        limit_ip=db_client.limit_ip,
+        tg_id=db_client.tg_id,
+        comment=db_client.comment,
+        flow=db_client.flow
     )
 
 @router.post("/{id}/reset-traffic", response_model=ClientResponse)
@@ -302,7 +358,6 @@ def reset_client_traffic(
             detail="Kullanıcı bulunamadı."
         )
 
-    # Reset traffic values in DB only (No Xray sync or restart needed as per instructions)
     db_client.up = 0
     db_client.down = 0
     db.commit()
@@ -319,5 +374,9 @@ def reset_client_traffic(
         expiry_time=db_client.expiry_time,
         up=db_client.up,
         down=db_client.down,
-        enable=db_client.enable
+        enable=db_client.enable,
+        limit_ip=db_client.limit_ip,
+        tg_id=db_client.tg_id,
+        comment=db_client.comment,
+        flow=db_client.flow
     )

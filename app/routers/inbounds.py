@@ -17,6 +17,13 @@ class InboundBase(BaseModel):
     settings: Optional[str] = None
     stream_settings: Optional[str] = None
     enable: Optional[bool] = True
+    network: Optional[str] = "ws"
+    security: Optional[str] = "tls"
+    sni: Optional[str] = None
+    ws_path: Optional[str] = "/"
+    ws_host: Optional[str] = None
+    sniffing_enabled: Optional[bool] = True
+    grpc_service_name: Optional[str] = None
 
 class InboundCreate(InboundBase):
     pass
@@ -28,6 +35,13 @@ class InboundUpdate(BaseModel):
     settings: Optional[str] = None
     stream_settings: Optional[str] = None
     enable: Optional[bool] = None
+    network: Optional[str] = None
+    security: Optional[str] = None
+    sni: Optional[str] = None
+    ws_path: Optional[str] = None
+    ws_host: Optional[str] = None
+    sniffing_enabled: Optional[bool] = None
+    grpc_service_name: Optional[str] = None
 
 class ClientResponse(BaseModel):
     id: int
@@ -38,6 +52,10 @@ class ClientResponse(BaseModel):
     up: int
     down: int
     enable: bool
+    limit_ip: int
+    tg_id: Optional[str]
+    comment: Optional[str]
+    flow: Optional[str]
     
     class Config:
         from_attributes = True
@@ -54,6 +72,13 @@ class InboundResponse(BaseModel):
     down: int
     total: int
     expiry_time: int
+    network: str
+    security: str
+    sni: Optional[str]
+    ws_path: Optional[str]
+    ws_host: Optional[str]
+    sniffing_enabled: bool
+    grpc_service_name: Optional[str]
     clients: List[ClientResponse] = []
 
     class Config:
@@ -77,6 +102,14 @@ def create_inbound(
             detail=f"{inbound_in.port} portu zaten başka bir inbound tarafından kullanılıyor."
         )
 
+    # Validation: gRPC needs service name
+    net = inbound_in.network.lower() if inbound_in.network else "ws"
+    if net == "grpc" and not inbound_in.grpc_service_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="gRPC network protokolü için Service Name alanı zorunludur."
+        )
+
     # Create inbound database object
     db_inbound = models.Inbound(
         remark=inbound_in.remark,
@@ -84,7 +117,14 @@ def create_inbound(
         port=inbound_in.port,
         settings=inbound_in.settings,
         stream_settings=inbound_in.stream_settings,
-        enable=inbound_in.enable if inbound_in.enable is not None else True
+        enable=inbound_in.enable if inbound_in.enable is not None else True,
+        network=net,
+        security=inbound_in.security.lower() if inbound_in.security else "tls",
+        sni=inbound_in.sni,
+        ws_path=inbound_in.ws_path if inbound_in.ws_path else "/",
+        ws_host=inbound_in.ws_host,
+        sniffing_enabled=inbound_in.sniffing_enabled if inbound_in.sniffing_enabled is not None else True,
+        grpc_service_name=inbound_in.grpc_service_name
     )
     
     db.add(db_inbound)
@@ -132,6 +172,17 @@ def update_inbound(
             )
         db_inbound.port = inbound_in.port
 
+    # Determine final network configuration
+    final_network = inbound_in.network.lower() if inbound_in.network is not None else db_inbound.network
+    final_grpc_name = inbound_in.grpc_service_name if inbound_in.grpc_service_name is not None else db_inbound.grpc_service_name
+
+    # Validation: gRPC needs service name
+    if final_network == "grpc" and not final_grpc_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="gRPC network protokolü için Service Name alanı zorunludur."
+        )
+
     # Update fields
     if inbound_in.remark is not None:
         db_inbound.remark = inbound_in.remark
@@ -143,6 +194,20 @@ def update_inbound(
         db_inbound.stream_settings = inbound_in.stream_settings
     if inbound_in.enable is not None:
         db_inbound.enable = inbound_in.enable
+    if inbound_in.network is not None:
+        db_inbound.network = inbound_in.network.lower()
+    if inbound_in.security is not None:
+        db_inbound.security = inbound_in.security.lower()
+    if inbound_in.sni is not None:
+        db_inbound.sni = inbound_in.sni
+    if inbound_in.ws_path is not None:
+        db_inbound.ws_path = inbound_in.ws_path if inbound_in.ws_path else "/"
+    if inbound_in.ws_host is not None:
+        db_inbound.ws_host = inbound_in.ws_host
+    if inbound_in.sniffing_enabled is not None:
+        db_inbound.sniffing_enabled = inbound_in.sniffing_enabled
+    if inbound_in.grpc_service_name is not None:
+        db_inbound.grpc_service_name = inbound_in.grpc_service_name
 
     try:
         db.flush()

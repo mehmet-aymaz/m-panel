@@ -94,6 +94,13 @@ def create_inbound(
     db: Session = Depends(get_db), 
     current_user: models.AdminUser = Depends(get_current_user)
 ):
+    # Reserved ports check (80 and 443 are used by Nginx)
+    if inbound_in.port in [80, 443]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{inbound_in.port} portu Nginx (Web Panel) tarafından kullanılıyor. Lütfen inbound için farklı bir port girin. WebSocket bağlantıları otomatik olarak Nginx (port 443) üzerinden yönlendirilecektir."
+        )
+
     # Port collision check
     existing = db.query(models.Inbound).filter(models.Inbound.port == inbound_in.port).first()
     if existing:
@@ -164,6 +171,11 @@ def update_inbound(
 
     # Port collision check if port is updated
     if inbound_in.port is not None and inbound_in.port != db_inbound.port:
+        if inbound_in.port in [80, 443]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{inbound_in.port} portu Nginx (Web Panel) tarafından kullanılıyor. Lütfen inbound için farklı bir port girin. WebSocket bağlantıları otomatik olarak Nginx (port 443) üzerinden yönlendirilecektir."
+            )
         existing = db.query(models.Inbound).filter(models.Inbound.port == inbound_in.port).first()
         if existing:
             raise HTTPException(

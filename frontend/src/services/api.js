@@ -69,4 +69,7 @@ export const api = {
   deleteClient: (id) => apiFetch(`/clients/${id}`, { method: 'DELETE' }),
   toggleClient: (id) => apiFetch(`/clients/${id}/toggle`, { method: 'PATCH' }),
   resetClientTraffic: (id) => apiFetch(`/clients/${id}/reset-traffic`, { method: 'POST' }),
+  getClientIpLogs: (id) => apiFetch(`/clients/${id}/ip-logs`),
+  controlXray: (action) => apiFetch(`/system/xray/control?action=${action}`, { method: 'POST' }),
 };
+

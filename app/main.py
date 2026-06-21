@@ -44,6 +44,16 @@ def health_check():
         "xray_active": xray_active
     }
 
+@app.on_event("startup")
+def startup_event():
+    from stats_collector import start_collector
+    start_collector()
+
+@app.on_event("shutdown")
+def shutdown_event():
+    from stats_collector import stop_collector
+    stop_collector()
+
 # Include Routers
 app.include_router(public.router)
 app.include_router(auth.router)

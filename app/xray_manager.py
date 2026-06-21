@@ -51,9 +51,13 @@ def generate_config(db: Session) -> str:
             custom_stream = {}
 
         # Build dynamic streamSettings
+        inbound_security = inbound.security or "tls"
+        if (inbound.network or "ws") == "ws":
+            inbound_security = "none"
+
         dynamic_stream = {
             "network": inbound.network or "ws",
-            "security": inbound.security or "tls"
+            "security": inbound_security
         }
 
         # Handle Security
@@ -61,6 +65,14 @@ def generate_config(db: Session) -> str:
             tls_settings = custom_stream.get("tlsSettings", {})
             if inbound.sni:
                 tls_settings["serverName"] = inbound.sni
+            # Automatically add server certificates if not present
+            if "certificates" not in tls_settings:
+                tls_settings["certificates"] = [
+                    {
+                        "certificateFile": "/usr/local/etc/xray/fullchain.pem",
+                        "keyFile": "/usr/local/etc/xray/privkey.pem"
+                    }
+                ]
             dynamic_stream["tlsSettings"] = tls_settings
         elif dynamic_stream["security"] == "reality":
             reality_settings = custom_stream.get("realitySettings", {})
@@ -117,7 +129,9 @@ def generate_config(db: Session) -> str:
                             "email": client.email,
                             "level": 0
                         }
-                        if client.flow:
+                        # Flow (like xtls-rprx-vision) is only supported on VLESS over TCP with TLS/Reality.
+                        # Using flow on WS or gRPC will cause Xray to reject the connection.
+                        if client.flow and (inbound.network or "ws") == "tcp" and (inbound.security or "none") in ["tls", "reality"]:
                             client_dict["flow"] = client.flow
                         if client.limit_ip and client.limit_ip > 0:
                             client_dict["limitIp"] = client.limit_ip
@@ -160,15 +174,40 @@ def generate_config(db: Session) -> str:
             
         xray_inbounds.append(xray_inbound)
         
+    # Add API inbound for local control/stats
+    xray_inbounds.append({
+        "listen": "127.0.0.1",
+        "port": 10085,
+        "protocol": "dokodemo-door",
+        "settings": {
+            "address": "127.0.0.1"
+        },
+        "tag": "api"
+    })
+        
     config = {
         "log": {
             "loglevel": "warning"
         },
         "stats": {},
+        "api": {
+            "tag": "api",
+            "services": [
+                "HandlerService",
+                "LoggerService",
+                "StatsService"
+            ]
+        },
         "policy": {
             "system": {
                 "statsInboundUplink": True,
                 "statsInboundDownlink": True
+            },
+            "levels": {
+                "0": {
+                    "statsUserUplink": True,
+                    "statsUserDownlink": True
+                }
             }
         },
         "inbounds": xray_inbounds,
@@ -186,6 +225,11 @@ def generate_config(db: Session) -> str:
         "routing": {
             "domainStrategy": "IPIfNonMatch",
             "rules": [
+                {
+                    "type": "field",
+                    "inboundTag": ["api"],
+                    "outboundTag": "api"
+                },
                 {
                     "type": "field",
                     "ip": ["geoip:private"],
@@ -254,6 +298,22 @@ def rollback_and_raise(backup_created: bool, error_msg: str):
 def rebuild_and_apply_xray_config():
     db = SessionLocal()
     try:
+        # Copy Let's Encrypt certificates to Xray directory and set permissions
+        try:
+            shutil.copy2("/etc/letsencrypt/live/panel.mehmetaymaz.com.tr/fullchain.pem", "/usr/local/etc/xray/fullchain.pem")
+            shutil.copy2("/etc/letsencrypt/live/panel.mehmetaymaz.com.tr/privkey.pem", "/usr/local/etc/xray/privkey.pem")
+            os.chmod("/usr/local/etc/xray/fullchain.pem", 0o644)
+            os.chmod("/usr/local/etc/xray/privkey.pem", 0o644)
+        except Exception as e:
+            print(f"Warning: Failed to copy certificates: {e}")
+
+        # Automatically allow enabled inbound ports in firewall
+        active_inbounds = db.query(models.Inbound).filter(models.Inbound.enable == True).all()
+        for ib in active_inbounds:
+            try:
+                subprocess.run(["ufw", "allow", f"{ib.port}/tcp"], capture_output=True)
+            except Exception:
+                pass
         config_str = generate_config(db)
         apply_config(config_str)
     finally:

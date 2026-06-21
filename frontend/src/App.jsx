@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Inbounds from './pages/Inbounds';
 import Clients from './pages/Clients';
 import { getAuthToken } from './services/api';
+import { SettingsProvider } from './context/SettingsContext';
 import './App.css';
 
 // Protected Route Wrapper Component
@@ -19,24 +20,26 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="inbounds" element={<Inbounds />} />
-          <Route path="clients" element={<Clients />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </Router>
+    <SettingsProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="inbounds" element={<Inbounds />} />
+            <Route path="clients" element={<Clients />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Router>
+    </SettingsProvider>
   );
 }
 

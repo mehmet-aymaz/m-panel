@@ -1,7 +1,7 @@
 import time
 import json
 import urllib.parse
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from database import get_db
 import models
@@ -61,6 +61,11 @@ def build_vless_link(client: models.Client, inbound: models.Inbound, host: str) 
     net_type = inbound.network or "ws"
     security = inbound.security or "none"
     
+    # All WebSocket inbounds are proxied via Nginx on port 443 with SSL
+    if net_type == "ws":
+        security = "tls"
+        port = 443
+    
     p = {
         "type": net_type,
         "security": security,
@@ -70,6 +75,11 @@ def build_vless_link(client: models.Client, inbound: models.Inbound, host: str) 
     if security in ["tls", "xtls"]:
         if inbound.sni:
             p["sni"] = inbound.sni
+        
+        # Default fallback values for client TLS handshake
+        p["alpn"] = "http/1.1"
+        p["fp"] = "chrome"
+        
         try:
             custom_stream = json.loads(inbound.stream_settings) if inbound.stream_settings else {}
             tls_s = custom_stream.get("tlsSettings", {})
@@ -120,7 +130,11 @@ def build_vless_link(client: models.Client, inbound: models.Inbound, host: str) 
     return f"vless://{client.uuid}@{host}:{port}?{query_str}#{remark_encoded}"
 
 @router.get("/api")
-def query_client_profile(uuid: str = Query(..., description="UUID value of the client"), db: Session = Depends(get_db)):
+def query_client_profile(
+    request: Request,
+    uuid: str = Query(..., description="UUID value of the client"),
+    db: Session = Depends(get_db)
+):
     # Find client by UUID
     client = db.query(models.Client).filter(models.Client.uuid == uuid).first()
     if not client:
@@ -131,14 +145,17 @@ def query_client_profile(uuid: str = Query(..., description="UUID value of the c
     if not inbound:
         return {"success": False, "message": "Kullanicinin bagli oldugu inbound bulunamadi."}
         
-    host = "wmehmet.web.tr"
+    # Dynamically extract host from request header
+    host = request.headers.get("host") or "panel.mehmetaymaz.com.tr"
+    if ":" in host:
+        host = host.split(":")[0]
     
     # Generate links list
     link = build_vless_link(client, inbound, host)
     links = [{
         "link": link,
         "network": inbound.network or "ws",
-        "port": inbound.port,
+        "port": 443 if (inbound.network or "ws") == "ws" else inbound.port,
         "remark": inbound.remark or "",
     }]
     
@@ -156,3 +173,4 @@ def query_client_profile(uuid: str = Query(..., description="UUID value of the c
         "totalGB": client.total_gb or 0.0,
         "profile": profile
     }
+

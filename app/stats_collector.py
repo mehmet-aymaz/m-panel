@@ -2,6 +2,8 @@ import threading
 import time
 import json
 import subprocess
+import psutil
+import shutil
 from database import SessionLocal
 import models
 from xray_manager import rebuild_and_apply_xray_config
@@ -13,6 +15,8 @@ ONLINE_USERS = {}
 REALTIME_TRAFFIC = {}
 # Key: client email, Value: float
 LAST_ACTIVE_TIME = {}
+# System status metrics cache
+SYSTEM_STATUS_CACHE = {}
 
 # Pending deltas to commit to database periodically
 # Key: client email, Value: {"up": int, "down": int}
@@ -97,6 +101,11 @@ def fetch_online_users():
     return emails
 
 def load_initial_stats():
+    try:
+        psutil.cpu_percent(interval=0.1)
+    except:
+        pass
+
     db = SessionLocal()
     try:
         clients = db.query(models.Client).all()
@@ -110,6 +119,86 @@ def load_initial_stats():
         print(f"Error loading initial stats: {e}")
     finally:
         db.close()
+
+    update_system_status_cache()
+
+def update_system_status_cache():
+    global SYSTEM_STATUS_CACHE
+    try:
+        cpu_percent = psutil.cpu_percent(interval=None)
+        cpu_cores = psutil.cpu_count(logical=True)
+        
+        mem = psutil.virtual_memory()
+        memory_percent = mem.percent
+        memory_total = mem.total
+        memory_used = mem.used
+        
+        swap = psutil.swap_memory()
+        swap_percent = swap.percent
+        swap_total = swap.total
+        swap_used = swap.used
+        
+        disk = shutil.disk_usage("/")
+        disk_total = disk.total
+        disk_used = disk.used
+        disk_percent = (disk.used / disk.total) * 100
+        
+        net_io = psutil.net_io_counters()
+        net_sent = net_io.bytes_sent
+        net_recv = net_io.bytes_recv
+        
+        tcp_count = 0
+        udp_count = 0
+        try:
+            connections = psutil.net_connections(kind='inet')
+            for conn in connections:
+                if conn.type == 1:
+                    tcp_count += 1
+                elif conn.type == 2:
+                    udp_count += 1
+        except Exception:
+            pass
+            
+        system_uptime = int(time.time() - psutil.boot_time())
+        
+        xray_active = False
+        try:
+            res = subprocess.run(["systemctl", "is-active", "xray"], capture_output=True, text=True)
+            xray_active = res.stdout.strip() == "active"
+        except Exception:
+            pass
+            
+        SYSTEM_STATUS_CACHE = {
+            "cpu_usage": cpu_percent,
+            "cpu_cores": cpu_cores,
+            "memory": {
+                "percent": memory_percent,
+                "total_bytes": memory_total,
+                "used_bytes": memory_used
+            },
+            "swap": {
+                "percent": swap_percent,
+                "total_bytes": swap_total,
+                "used_bytes": swap_used
+            },
+            "disk": {
+                "percent": round(disk_percent, 2),
+                "total_bytes": disk_total,
+                "used_bytes": disk_used
+            },
+            "net_io": {
+                "bytes_sent": net_sent,
+                "bytes_recv": net_recv
+            },
+            "connections": {
+                "tcp": tcp_count,
+                "udp": udp_count
+            },
+            "uptime": system_uptime,
+            "xray_service_active": xray_active
+        }
+    except Exception as e:
+        print(f"Error updating system status cache: {e}")
 
 def write_deltas_to_db():
     global PENDING_TRAFFIC_DELTAS
@@ -193,12 +282,34 @@ def collect_stats_loop():
         # 2. Fetch online users
         online_emails = fetch_online_users()
         
+        # Fetch all current client emails from DB dynamically to ensure new/deleted clients are handled correctly
+        db = SessionLocal()
+        try:
+            db_emails = {c.email for c in db.query(models.Client.email).all()}
+        except Exception as e:
+            print(f"Error querying client emails: {e}")
+            db_emails = set(ONLINE_USERS.keys())
+        finally:
+            db.close()
+
         # Update ONLINE_USERS
         now = time.time()
+        for email in db_emails:
+            if email not in ONLINE_USERS:
+                ONLINE_USERS[email] = False
+
         for email in list(ONLINE_USERS.keys()):
-            # Online if in online_emails list or active in last 60 seconds
-            is_online = (email in online_emails) or (now - LAST_ACTIVE_TIME.get(email, 0) < 60)
+            if email not in db_emails:
+                ONLINE_USERS.pop(email, None)
+                LAST_ACTIVE_TIME.pop(email, None)
+                REALTIME_TRAFFIC.pop(email, None)
+                continue
+            # Online if in online_emails list or active in last 10 seconds
+            is_online = (email in online_emails) or (now - LAST_ACTIVE_TIME.get(email, 0) < 10)
             ONLINE_USERS[email] = is_online
+            
+        # 2.5 Update system status cache
+        update_system_status_cache()
                     
         # 3. Periodically write deltas to DB (every 30 seconds)
         if time.time() - last_db_write >= 30:

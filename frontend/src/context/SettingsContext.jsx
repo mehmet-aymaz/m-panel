@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { translations } from '../services/translations';
-import { CheckCircle, XCircle, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Info, HelpCircle } from 'lucide-react';
 
 const SettingsContext = createContext();
 
@@ -16,6 +16,8 @@ export const SettingsProvider = ({ children }) => {
     return 'dark'; // Default theme
   });
   const [toast, setToast] = useState(null); // { message, type }
+  const [systemHistory, setSystemHistory] = useState([]);
+  const [confirmState, setConfirmState] = useState(null); // { message, resolve }
 
   useEffect(() => {
     localStorage.setItem('lang', language);
@@ -51,13 +53,19 @@ export const SettingsProvider = ({ children }) => {
     setToast({ message, type });
   };
 
+  const confirm = (message) => {
+    return new Promise((resolve) => {
+      setConfirmState({ message, resolve });
+    });
+  };
+
   const t = (key) => {
     const dict = translations[language] || translations['tr'];
     return dict[key] || key;
   };
 
   return (
-    <SettingsContext.Provider value={{ language, setLanguage, theme, setTheme, t, showToast }}>
+    <SettingsContext.Provider value={{ language, setLanguage, theme, setTheme, t, showToast, systemHistory, setSystemHistory, confirm }}>
       {children}
       
       {/* Custom Toast Notification Component */}
@@ -96,6 +104,70 @@ export const SettingsProvider = ({ children }) => {
             <CheckCircle size={16} style={{ color: 'var(--success)' }} />
           )}
           <span style={{ whiteSpace: 'nowrap' }}>{toast.message}</span>
+        </div>,
+        document.body
+      )}
+
+      {/* Custom Center Confirm Modal Component */}
+      {confirmState && createPortal(
+        <div className="modal-overlay" style={{ zIndex: 100000000 }}>
+          <div className="modal-content glass-card glow-cyan animate-fade-in" style={{
+            maxWidth: '400px',
+            padding: '2rem',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1rem',
+            background: 'var(--bg-modal-solid)',
+            boxShadow: 'var(--shadow-lg)'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              background: 'rgba(245, 158, 11, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--warning)',
+              marginBottom: '0.5rem'
+            }}>
+              <HelpCircle size={24} />
+            </div>
+            
+            <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+              {t('confirm_title') || (language === 'tr' ? 'Onay Gerekiyor' : 'Confirmation Required')}
+            </h3>
+            
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.4', margin: '0.5rem 0' }}>
+              {confirmState.message}
+            </p>
+            
+            <div style={{ display: 'flex', width: '100%', gap: '0.75rem', marginTop: '1rem' }}>
+              <button 
+                className="btn-secondary" 
+                onClick={() => {
+                  confirmState.resolve(false);
+                  setConfirmState(null);
+                }}
+                style={{ flex: 1, padding: '0.65rem', borderRadius: '12px' }}
+              >
+                {t('cancel')}
+              </button>
+              
+              <button 
+                className="btn-primary" 
+                onClick={() => {
+                  confirmState.resolve(true);
+                  setConfirmState(null);
+                }}
+                style={{ flex: 1, padding: '0.65rem', borderRadius: '12px', background: 'var(--danger)' }}
+              >
+                {language === 'tr' ? 'Evet, Onayla' : 'Yes, Confirm'}
+              </button>
+            </div>
+          </div>
         </div>,
         document.body
       )}

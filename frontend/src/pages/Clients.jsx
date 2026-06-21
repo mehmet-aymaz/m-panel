@@ -7,7 +7,7 @@ import { useSettings } from '../context/SettingsContext';
 import { Plus, Edit2, Trash2, CheckCircle, XCircle, RefreshCw, Key, AlertCircle, RotateCcw, Copy, Info, List, LayoutGrid, Eye, QrCode } from 'lucide-react';
 
 export default function Clients() {
-  const { t, showToast } = useSettings();
+  const { t, showToast, confirm } = useSettings();
   const [clients, setClients] = useState([]);
   const [inbounds, setInbounds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -595,7 +595,7 @@ export default function Clients() {
   };
 
   const handleDelete = async (client) => {
-    if (!window.confirm(`"${client.email}" ${t('confirm_delete_client')}`)) {
+    if (!await confirm(`"${client.email}" ${t('confirm_delete_client')}`)) {
       return;
     }
     setActionLoading(true);
@@ -611,7 +611,7 @@ export default function Clients() {
   };
 
   const handleResetTraffic = async (client) => {
-    if (!window.confirm(`"${client.email}" ${t('confirm_reset_client')}`)) {
+    if (!await confirm(`"${client.email}" ${t('confirm_reset_client')}`)) {
       return;
     }
     setActionLoading(true);

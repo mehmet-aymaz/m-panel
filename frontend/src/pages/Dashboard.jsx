@@ -61,10 +61,9 @@ function RadialGauge({ value, color, label, icon: Icon, details, subdetails }) {
 }
 
 export default function Dashboard() {
-  const { t, showToast } = useSettings();
+  const { t, showToast, systemHistory, setSystemHistory } = useSettings();
   const [status, setStatus] = useState(null);
   const [summary, setSummary] = useState(null);
-  const [history, setHistory] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -146,15 +145,15 @@ export default function Dashboard() {
         }
 
         // Update chart history
-        setHistory(prev => {
+        setSystemHistory(prev => {
           const newPoint = {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             cpu: data.cpu_usage || 0,
             ram: data.memory?.percent || 0,
           };
           const updated = [...prev, newPoint];
-          if (updated.length > 10) {
-            return updated.slice(updated.length - 10);
+          if (updated.length > 20) {
+            return updated.slice(updated.length - 20);
           }
           return updated;
         });
@@ -278,9 +277,9 @@ export default function Dashboard() {
               {t('system_graph')}
             </h2>
             <div style={{ flex: 1, width: '100%', height: '100%', minHeight: '220px' }}>
-              {history.length > 0 ? (
+              {systemHistory.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={systemHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="var(--accent-cyan)" stopOpacity={0.2}/>

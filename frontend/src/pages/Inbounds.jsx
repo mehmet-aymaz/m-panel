@@ -6,7 +6,7 @@ import { useSettings } from '../context/SettingsContext';
 import { Plus, Edit2, Trash2, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function Inbounds() {
-  const { t } = useSettings();
+  const { t, confirm } = useSettings();
   const [inbounds, setInbounds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -235,7 +235,7 @@ export default function Inbounds() {
   };
 
   const handleDelete = async (inbound) => {
-    if (!window.confirm(`"${inbound.remark || inbound.port}" ${t('confirm_delete_inbound')}`)) {
+    if (!await confirm(`"${inbound.remark || inbound.port}" ${t('confirm_delete_inbound')}`)) {
       return;
     }
     setActionLoading(true);

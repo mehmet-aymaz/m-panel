@@ -94,11 +94,17 @@ def create_inbound(
     db: Session = Depends(get_db), 
     current_user: models.AdminUser = Depends(get_current_user)
 ):
-    # Reserved ports check (80 and 443 are used by Nginx)
-    if inbound_in.port in [80, 443]:
+    # Reserved ports check (System and panel reserve ports)
+    RESERVED_PORTS = [22, 8000, 8443]
+    if inbound_in.port in RESERVED_PORTS:
+        port_desc = {
+            22: "SSH bağlantısı",
+            8000: "M-Panel API backend servisi",
+            8443: "Nginx Web Panel arayüzü"
+        }.get(inbound_in.port, "Sistem")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{inbound_in.port} portu Nginx (Web Panel) tarafından kullanılıyor. Lütfen inbound için farklı bir port girin. WebSocket bağlantıları otomatik olarak Nginx (port 443) üzerinden yönlendirilecektir."
+            detail=f"{inbound_in.port} portu {port_desc} tarafından kullanılıyor. Lütfen inbound için farklı bir port girin."
         )
 
     # Port collision check
@@ -169,12 +175,17 @@ def update_inbound(
             detail="Inbound bulunamadı."
         )
 
-    # Port collision check if port is updated
     if inbound_in.port is not None and inbound_in.port != db_inbound.port:
-        if inbound_in.port in [80, 443]:
+        RESERVED_PORTS = [22, 8000, 8443]
+        if inbound_in.port in RESERVED_PORTS:
+            port_desc = {
+                22: "SSH bağlantısı",
+                8000: "M-Panel API backend servisi",
+                8443: "Nginx Web Panel arayüzü"
+            }.get(inbound_in.port, "Sistem")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{inbound_in.port} portu Nginx (Web Panel) tarafından kullanılıyor. Lütfen inbound için farklı bir port girin. WebSocket bağlantıları otomatik olarak Nginx (port 443) üzerinden yönlendirilecektir."
+                detail=f"{inbound_in.port} portu {port_desc} tarafından kullanılıyor. Lütfen inbound için farklı bir port girin."
             )
         existing = db.query(models.Inbound).filter(models.Inbound.port == inbound_in.port).first()
         if existing:

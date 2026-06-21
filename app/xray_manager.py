@@ -52,8 +52,6 @@ def generate_config(db: Session) -> str:
 
         # Build dynamic streamSettings
         inbound_security = inbound.security or "tls"
-        if (inbound.network or "ws") == "ws":
-            inbound_security = "none"
 
         dynamic_stream = {
             "network": inbound.network or "ws",

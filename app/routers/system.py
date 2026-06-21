@@ -5,11 +5,16 @@ import time
 import subprocess
 from auth import get_current_user
 import models
+from stats_collector import SYSTEM_STATUS_CACHE
 
 router = APIRouter(prefix="/system", tags=["system"])
 
 @router.get("/status")
 def get_system_status(current_user: models.AdminUser = Depends(get_current_user)):
+    # Return background cached system status if available for real-time accuracy and zero lag
+    if SYSTEM_STATUS_CACHE:
+        return SYSTEM_STATUS_CACHE
+
     # CPU usage and cores
     cpu_percent = psutil.cpu_percent(interval=None)
     cpu_cores = psutil.cpu_count(logical=True)

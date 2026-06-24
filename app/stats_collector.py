@@ -183,12 +183,25 @@ def update_system_status_cache():
         tcp_count = 0
         udp_count = 0
         try:
-            connections = psutil.net_connections(kind='inet')
-            for conn in connections:
-                if conn.type == 1:
-                    tcp_count += 1
-                elif conn.type == 2:
-                    udp_count += 1
+            import os
+            if os.path.exists('/proc/net/tcp'):
+                with open('/proc/net/tcp', 'r') as f:
+                    tcp_count = sum(1 for _ in f) - 1
+                with open('/proc/net/udp', 'r') as f:
+                    udp_count = sum(1 for _ in f) - 1
+                if os.path.exists('/proc/net/tcp6'):
+                    with open('/proc/net/tcp6', 'r') as f:
+                        tcp_count += sum(1 for _ in f) - 1
+                if os.path.exists('/proc/net/udp6'):
+                    with open('/proc/net/udp6', 'r') as f:
+                        udp_count += sum(1 for _ in f) - 1
+            else:
+                connections = psutil.net_connections(kind='inet')
+                for conn in connections:
+                    if conn.type == 1:
+                        tcp_count += 1
+                    elif conn.type == 2:
+                        udp_count += 1
         except Exception:
             pass
             
@@ -391,9 +404,9 @@ def collect_stats_loop():
             write_deltas_to_db()
             last_db_write = time.time()
             
-        # Sleep for the remainder of the 5-second interval
+        # Sleep for the remainder of the 10-second interval
         elapsed = time.time() - start_time
-        sleep_time = max(0.1, 5.0 - elapsed)
+        sleep_time = max(0.1, 10.0 - elapsed)
         _stop_event.wait(sleep_time)
         
     # Write remaining deltas on shutdown

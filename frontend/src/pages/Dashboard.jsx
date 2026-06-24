@@ -227,20 +227,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Test Update Banner */}
-      <div className="glass-card glow-cyan" style={{ padding: '1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid var(--accent-cyan)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Activity size={20} style={{ color: 'var(--accent-cyan)' }} />
-          <div style={{ textAlign: 'left' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>M-Panel Güncelleme Test Butonu</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>Bu buton panel güncelleme işlevini doğrulamak amacıyla geçici olarak eklenmiştir.</p>
-          </div>
-        </div>
-        <button className="btn btn-primary" onClick={() => alert('Güncelleme testi başarılı! / Update test successful!')}>
-          Test Butonu
-        </button>
-      </div>
-
       {/* Grid of chart, traffic speed & xray status */}
       <div className="charts-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

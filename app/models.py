@@ -8,6 +8,8 @@ class AdminUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    two_factor_secret = Column(String, nullable=True)
+    two_factor_enabled = Column(Boolean, default=False, nullable=False)
 
 class Inbound(Base):
     __tablename__ = "inbounds"
@@ -53,3 +55,20 @@ class Client(Base):
     
     # Relationship to inbound
     inbound = relationship("Inbound", back_populates="clients")
+
+class APIToken(Base):
+    __tablename__ = "api_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    token = Column(String, unique=True, index=True, nullable=False)
+    scope = Column(String, default="read_only", nullable=False) # read_only, client_manage, full_access
+    created_at = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String, nullable=True)
+

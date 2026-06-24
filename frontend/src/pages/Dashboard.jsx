@@ -228,7 +228,7 @@ export default function Dashboard() {
       </div>
 
       {/* Grid of chart, traffic speed & xray status */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', flexWrap: 'wrap' }} className="charts-grid">
+      <div className="charts-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Traffic speeds card */}
           <div className="glass-card" style={{ padding: '1.5rem' }}>
@@ -236,7 +236,7 @@ export default function Dashboard() {
               <Activity size={18} style={{ color: 'var(--accent-cyan)' }} />
               {t('live_speed')}
             </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div className="dashboard-stats-grid">
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContext: 'center', justifyContent: 'center' }}>
                   <ArrowUp size={18} style={{ color: 'var(--success)' }} />
@@ -258,7 +258,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.25rem' }}>
+            <div className="dashboard-stats-grid" style={{ marginTop: '1.25rem' }}>
               <div style={{ padding: '0.5rem 1rem' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('total_traffic')} ({t('sent')}):</span>
                 <span style={{ fontSize: '0.95rem', fontWeight: '700', marginLeft: '0.5rem', color: 'var(--text-primary)' }}>{formatBytes(status?.net_io?.bytes_sent)}</span>

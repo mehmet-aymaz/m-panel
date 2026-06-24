@@ -1,40 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useSettings } from '../context/SettingsContext';
+import { Menu } from 'lucide-react';
 
 export default function Layout() {
   const location = useLocation();
   const { t } = useSettings();
   const [headerStats, setHeaderStats] = useState(null);
-  
-  // Determine page title based on path
-  const getPageDetails = () => {
-    switch (location.pathname) {
-      case '/':
-        return {
-          title: t('overview'),
-          subtitle: t('system_status')
-        };
-      case '/inbounds':
-        return {
-          title: t('inbound_mgmt'),
-          subtitle: t('inbound_desc')
-        };
-      case '/clients':
-        return {
-          title: t('client_mgmt'),
-          subtitle: t('client_desc')
-        };
-      default:
-        return {
-          title: 'M-Panel',
-          subtitle: 'Console'
-        };
-    }
-  };
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const { title, subtitle } = getPageDetails();
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.classList.add('mobile-menu-open');
+    } else {
+      document.body.classList.remove('mobile-menu-open');
+    }
+    return () => {
+      document.body.classList.remove('mobile-menu-open');
+    };
+  }, [isMobileMenuOpen]);
+  
 
   const renderStats = () => {
     if (!headerStats) return null;
@@ -89,20 +75,32 @@ export default function Layout() {
     return null;
   };
 
+  const stats = renderStats();
+
   return (
     <div className="app-container">
-      <Sidebar />
+      {/* Mobile Top Bar */}
+      <div className="mobile-header glass-card">
+        <button 
+          className="mobile-menu-btn" 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          type="button"
+        >
+          <Menu size={20} />
+        </button>
+        <div className="mobile-brand">
+          <div className="brand-icon">M</div>
+          <span>M-Panel</span>
+        </div>
+      </div>
+
+      <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
       <main className="main-content">
-        {location.pathname !== '/' && (
+        {location.pathname !== '/' && stats && (
           <header className="header-bar animate-fade-in">
-            <div className="page-title">
-              <h1>{title}</h1>
-              <p>{subtitle}</p>
-            </div>
-            
             {/* Dynamic Page Statistics */}
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              {renderStats()}
+              {stats}
             </div>
           </header>
         )}

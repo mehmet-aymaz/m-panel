@@ -5,11 +5,9 @@ from typing import Optional, List
 from database import get_db
 from auth import get_current_user
 import models
-from xray_manager import generate_config, apply_config
-
+from xray_manager import generate_config, apply_config, ufw_allow_port, ufw_delete_port
 router = APIRouter(prefix="/inbounds", tags=["inbounds"])
 
-# Pydantic schemas
 class InboundBase(BaseModel):
     remark: Optional[str] = None
     protocol: str
@@ -56,6 +54,7 @@ class ClientResponse(BaseModel):
     tg_id: Optional[str]
     comment: Optional[str]
     flow: Optional[str]
+    online: bool = False
     
     class Config:
         from_attributes = True
@@ -80,13 +79,49 @@ class InboundResponse(BaseModel):
     sniffing_enabled: bool
     grpc_service_name: Optional[str]
     clients: List[ClientResponse] = []
+    total_clients: int = 0
+    active_clients: int = 0
+    disabled_clients: int = 0
+    online_clients: int = 0
 
     class Config:
         from_attributes = True
 
+def populate_inbound_traffic(ib: models.Inbound):
+    from stats_collector import get_client_stats
+    from xray_manager import is_client_active
+    total_up = 0
+    total_down = 0
+    active_cnt = 0
+    online_cnt = 0
+    for client in ib.clients:
+        real_up, real_down, is_online = get_client_stats(client.email, client.up, client.down)
+        total_up += real_up
+        total_down += real_down
+        client.up = real_up
+        client.down = real_down
+        client.online = is_online
+        if is_client_active(client):
+            active_cnt += 1
+        if is_online:
+            online_cnt += 1
+            
+    ib.up = total_up
+    ib.down = total_down
+    ib.total = total_up + total_down
+    
+    ib.total_clients = len(ib.clients)
+    ib.active_clients = active_cnt
+    ib.disabled_clients = ib.total_clients - active_cnt
+    ib.online_clients = online_cnt
+    return ib
+
 @router.get("/", response_model=List[InboundResponse])
 def list_inbounds(db: Session = Depends(get_db), current_user: models.AdminUser = Depends(get_current_user)):
-    return db.query(models.Inbound).all()
+    inbounds = db.query(models.Inbound).all()
+    for ib in inbounds:
+        populate_inbound_traffic(ib)
+    return inbounds
 
 @router.post("/", response_model=InboundResponse)
 def create_inbound(
@@ -95,10 +130,12 @@ def create_inbound(
     current_user: models.AdminUser = Depends(get_current_user)
 ):
     # Reserved ports check (System and panel reserve ports)
-    RESERVED_PORTS = [22, 8000, 8443]
+    RESERVED_PORTS = [22, 80, 443, 8000, 8443]
     if inbound_in.port in RESERVED_PORTS:
         port_desc = {
             22: "SSH bağlantısı",
+            80: "HTTP web servisi",
+            443: "HTTPS/Xray servisi",
             8000: "M-Panel API backend servisi",
             8443: "Nginx Web Panel arayüzü"
         }.get(inbound_in.port, "Sistem")
@@ -150,6 +187,10 @@ def create_inbound(
         config_str = generate_config(db)
         apply_config(config_str)
         
+        # Open port in UFW if enabled
+        if db_inbound.enable:
+            ufw_allow_port(db_inbound.port)
+        
         # Commit database changes on success
         db.commit()
     except Exception as e:
@@ -159,6 +200,7 @@ def create_inbound(
             detail=f"Xray yapılandırması uygulanamadı veya servis başlatılamadı. Hata: {str(e)}"
         )
         
+    populate_inbound_traffic(db_inbound)
     return db_inbound
 
 @router.put("/{id}", response_model=InboundResponse)
@@ -175,11 +217,16 @@ def update_inbound(
             detail="Inbound bulunamadı."
         )
 
+    old_port = db_inbound.port
+    port_changed = False
+
     if inbound_in.port is not None and inbound_in.port != db_inbound.port:
-        RESERVED_PORTS = [22, 8000, 8443]
+        RESERVED_PORTS = [22, 80, 443, 8000, 8443]
         if inbound_in.port in RESERVED_PORTS:
             port_desc = {
                 22: "SSH bağlantısı",
+                80: "HTTP web servisi",
+                443: "HTTPS/Xray servisi",
                 8000: "M-Panel API backend servisi",
                 8443: "Nginx Web Panel arayüzü"
             }.get(inbound_in.port, "Sistem")
@@ -194,6 +241,7 @@ def update_inbound(
                 detail=f"{inbound_in.port} portu zaten başka bir inbound tarafından kullanılıyor."
             )
         db_inbound.port = inbound_in.port
+        port_changed = True
 
     # Determine final network configuration
     final_network = inbound_in.network.lower() if inbound_in.network is not None else db_inbound.network
@@ -236,6 +284,17 @@ def update_inbound(
         db.flush()
         config_str = generate_config(db)
         apply_config(config_str)
+        
+        # Sync UFW rules
+        if db_inbound.enable:
+            ufw_allow_port(db_inbound.port)
+            if port_changed:
+                ufw_delete_port(old_port, db, exclude_inbound_id=db_inbound.id)
+        else:
+            ufw_delete_port(db_inbound.port, db, exclude_inbound_id=db_inbound.id)
+            if port_changed:
+                ufw_delete_port(old_port, db, exclude_inbound_id=db_inbound.id)
+                
         db.commit()
     except Exception as e:
         db.rollback()
@@ -244,6 +303,7 @@ def update_inbound(
             detail=f"Xray yapılandırması güncellenemedi. Hata: {str(e)}"
         )
 
+    populate_inbound_traffic(db_inbound)
     return db_inbound
 
 @router.delete("/{id}")
@@ -259,12 +319,17 @@ def delete_inbound(
             detail="Inbound bulunamadı."
         )
 
+    port_to_delete = db_inbound.port
     db.delete(db_inbound)
 
     try:
         db.flush()
         config_str = generate_config(db)
         apply_config(config_str)
+        
+        # Remove UFW rule if no other inbound uses this port
+        ufw_delete_port(port_to_delete, db)
+        
         db.commit()
     except Exception as e:
         db.rollback()
@@ -302,4 +367,5 @@ def toggle_inbound(
             detail=f"Inbound durumu değiştirilirken Xray yapılandırması uygulanamadı. Hata: {str(e)}"
         )
 
+    populate_inbound_traffic(db_inbound)
     return db_inbound

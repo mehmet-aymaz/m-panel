@@ -130,3 +130,19 @@ def control_xray(action: str, current_user: models.AdminUser = Depends(get_curre
             detail=f"Xray servisi {action} edilemedi. Hata: {str(e)}"
         )
 
+@router.get("/logs")
+def get_xray_logs(limit: int = 100, current_user: models.AdminUser = Depends(get_current_user)):
+    try:
+        cmd = ["journalctl", "-u", "xray", "-n", str(limit), "--no-pager"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if res.returncode != 0:
+            raise Exception(res.stderr or res.stdout)
+        
+        lines = res.stdout.splitlines()
+        return {"logs": lines}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Xray logları alınamadı. Hata: {str(e)}"
+        )
+

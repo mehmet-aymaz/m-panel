@@ -2,7 +2,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -57,21 +57,61 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.AdminUser:
+def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.AdminUser:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    # 1. Try decoding as JWT
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
+        if username is not None:
+            user = db.query(models.AdminUser).filter(models.AdminUser.username == username).first()
+            if user is not None:
+                return user
     except JWTError:
-        raise credentials_exception
+        pass
         
-    user = db.query(models.AdminUser).filter(models.AdminUser.username == username).first()
-    if user is None:
-        raise credentials_exception
-    return user
+    # 2. Try matching as API Token
+    api_token = db.query(models.APIToken).filter(models.APIToken.token == token, models.APIToken.is_active == True).first()
+    if api_token is not None:
+        # Check permissions based on scope
+        method = request.method
+        path = request.url.path
+        scope = api_token.scope
+        
+        # Enforce scope restrictions
+        if scope == "read_only":
+            if method != "GET":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bu işlem için yetkiniz bulunmamaktadır (Salt Okunur)"
+                )
+        elif scope == "client_manage":
+            # Allow all GET requests
+            # For write requests, only allow client endpoints
+            if method in ["POST", "PUT", "DELETE"]:
+                # Strip /api prefix if present for uniform check
+                clean_path = path[4:] if path.startswith("/api") else path
+                is_client_path = clean_path.startswith("/clients") or clean_path.startswith("clients")
+                if not is_client_path:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Bu işlem için yetkiniz bulunmamaktadır (Sadece Kullanıcı Yönetimi)"
+                    )
+        elif scope == "full_access":
+            pass
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Geçersiz yetki kapsamı (Scope)"
+            )
+            
+        # Get the first admin user since M-Panel currently only has one admin
+        admin = db.query(models.AdminUser).first()
+        if admin is not None:
+            return admin
+            
+    raise credentials_exception

@@ -1,18 +1,23 @@
-# Dependencies
-node_modules/
-
-# Production build outputs
-dist/
-build/
-
-# Local env files
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
 .env
-.env.local
-.env.*.local
 app/.env
 
-# Local temp files / system files
+# Frontend build
+frontend/node_modules/
+frontend/dist/
+
+# Database
+app/data/
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# OS
 .DS_Store
 Thumbs.db
-*.log
-scratch/

@@ -69,6 +69,8 @@ export default function Inbounds() {
 
   useEffect(() => {
     fetchInbounds();
+    const interval = setInterval(fetchInbounds, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Toggle body class for modal state to allow hiding header panel and increasing blur
@@ -281,73 +283,90 @@ export default function Inbounds() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: '60px' }}>ID</th>
+                <th style={{ width: '80px' }}>{t('status') || 'Etkin'}</th>
                 <th>{t('remark')}</th>
-                <th>{t('protocol')}</th>
                 <th>{t('port')}</th>
-                <th>{t('stream')}</th>
-                <th>{t('security')}</th>
-                <th>{t('upload')} (Up)</th>
-                <th>{t('download')} (Down)</th>
-                <th>{t('client_count')}</th>
-                <th>{t('status')}</th>
-                <th>{t('actions')}</th>
+                <th>{t('protocol')}</th>
+                <th>{t('client_count') || 'Kullanıcılar'}</th>
+                <th>{t('traffic')}</th>
+                <th>{t('duration') || 'Süre'}</th>
+                <th style={{ textAlign: 'right' }}>{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
               {inbounds.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                     {t('no_inbounds')}
                   </td>
                 </tr>
               ) : (
                 inbounds.map((inbound) => (
                   <tr key={inbound.id}>
-                    <td style={{ fontWeight: '600' }}>{inbound.remark || '-'}</td>
-                    <td>
-                      <span className="badge badge-info">{inbound.protocol.toUpperCase()}</span>
+                    <td data-label="ID" style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>{inbound.id}</td>
+                    <td data-label={t('status') || 'Etkin'}>
+                      <label className="switch">
+                        <input 
+                          type="checkbox" 
+                          checked={inbound.enable} 
+                          onChange={() => handleToggle(inbound)}
+                          disabled={actionLoading}
+                        />
+                        <span className="switch-slider"></span>
+                      </label>
                     </td>
-                    <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{inbound.port}</td>
-                    <td>
-                      <span className="badge badge-info" style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)' }}>
-                        {inbound.network ? inbound.network.toUpperCase() : 'WS'}
+                    <td data-label={t('remark')} style={{ fontWeight: '600' }}>{inbound.remark || '-'}</td>
+                    <td data-label={t('port')}>
+                      <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-cyan)', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                        {inbound.port}
                       </span>
                     </td>
-                    <td>
-                      <span className="badge" style={{ 
-                        background: inbound.security === 'none' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
-                        color: inbound.security === 'none' ? 'var(--danger)' : 'var(--success)'
-                      }}>
-                        {inbound.security ? inbound.security.toUpperCase() : 'TLS'}
+                    <td data-label={t('protocol')}>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-purple)', borderRadius: '4px' }}>
+                          {inbound.protocol.toUpperCase()}
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: '4px' }}>
+                          {(inbound.network || 'WS').toUpperCase()}
+                        </span>
+                        <span className="badge" style={{ 
+                          background: inbound.security === 'none' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)', 
+                          color: inbound.security === 'none' ? 'var(--danger)' : 'var(--accent-blue)',
+                          borderRadius: '4px'
+                        }}>
+                          {(inbound.security || 'TLS').toUpperCase()}
+                        </span>
+                      </div>
+                    </td>
+                    <td data-label={t('client_count') || 'Kullanıcılar'}>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', borderRadius: '4px', padding: '0.2rem 0.4rem', gap: '0.2rem' }} title={t('total_clients')}>
+                          👥 {inbound.total_clients || 0}
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: '4px', padding: '0.2rem 0.4rem' }} title={t('stat_active')}>
+                          {inbound.active_clients || 0}
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '4px', padding: '0.2rem 0.4rem' }} title={t('stat_disabled')}>
+                          {inbound.disabled_clients || 0}
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', borderRadius: '4px', padding: '0.2rem 0.4rem' }} title={t('online')}>
+                          {inbound.online_clients || 0}
+                        </span>
+                      </div>
+                    </td>
+                    <td data-label={t('traffic')}>
+                      <span className="badge" style={{ background: 'rgba(167, 139, 250, 0.1)', color: 'var(--accent-purple)', borderRadius: '4px', fontWeight: '500' }}>
+                        {formatTraffic(inbound.total)} / ∞
                       </span>
                     </td>
-                    <td>{formatTraffic(inbound.up)}</td>
-                    <td>{formatTraffic(inbound.down)}</td>
-                    <td>
-                      <span className="badge badge-info" style={{ borderRadius: '4px' }}>
-                        {inbound.clients ? inbound.clients.length : 0} {t('total_clients')}
+                    <td data-label={t('duration') || 'Süre'}>
+                      <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', borderRadius: '4px', fontWeight: '500' }}>
+                        ∞
                       </span>
                     </td>
-                    <td>
-                      <button 
-                        onClick={() => handleToggle(inbound)} 
-                        disabled={actionLoading}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                        title={t('status')}
-                      >
-                        {inbound.enable ? (
-                          <span className="badge badge-success">
-                            <CheckCircle size={10} style={{ marginRight: '3px' }} /> {t('active')}
-                          </span>
-                        ) : (
-                          <span className="badge badge-danger">
-                            <XCircle size={10} style={{ marginRight: '3px' }} /> {t('passive')}
-                          </span>
-                        )}
-                      </button>
-                    </td>
-                    <td>
-                      <div className="actions-cell">
+                    <td data-label={t('actions')} style={{ textAlign: 'right' }}>
+                      <div className="actions-cell" style={{ justifyContent: 'flex-end' }}>
                         <button className="btn-icon" title={t('edit')} onClick={() => handleOpenEditModal(inbound)} disabled={actionLoading}>
                           <Edit2 size={14} />
                         </button>
@@ -453,12 +472,23 @@ export default function Inbounds() {
                         id="modal-protocol"
                         className="form-input"
                         value={protocol}
-                        onChange={(e) => setProtocol(e.target.value)}
+                        onChange={(e) => {
+                          const proto = e.target.value;
+                          setProtocol(proto);
+                          if (proto === 'shadowsocks') {
+                            setSecurity('aes-256-gcm');
+                            setNetwork('tcp');
+                          } else {
+                            setSecurity('tls');
+                            setNetwork('ws');
+                          }
+                        }}
                         disabled={actionLoading || editMode}
                       >
                         <option value="vless">VLESS</option>
                         <option value="vmess">VMess</option>
                         <option value="trojan">Trojan</option>
+                        <option value="shadowsocks">Shadowsocks</option>
                       </select>
                     </div>
 
@@ -586,21 +616,40 @@ export default function Inbounds() {
               {activeTab === 'security' && (
                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: '340px' }}>
                   <div className="form-group">
-                    <label className="form-label" htmlFor="modal-security">{t('security')}</label>
-                    <select
-                      id="modal-security"
-                      className="form-input"
-                      value={security}
-                      onChange={(e) => setSecurity(e.target.value)}
-                      disabled={actionLoading}
-                    >
-                      <option value="tls">TLS</option>
-                      <option value="reality">Reality</option>
-                      <option value="none">None</option>
-                    </select>
+                    <label className="form-label" htmlFor="modal-security">
+                      {protocol === 'shadowsocks' ? 'Şifreleme Metodu (Method)' : t('security')}
+                    </label>
+                    {protocol === 'shadowsocks' ? (
+                      <select
+                        id="modal-security"
+                        className="form-input"
+                        value={security}
+                        onChange={(e) => setSecurity(e.target.value)}
+                        disabled={actionLoading}
+                      >
+                        <option value="aes-256-gcm">aes-256-gcm</option>
+                        <option value="aes-128-gcm">aes-128-gcm</option>
+                        <option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option>
+                        <option value="2022-blake3-aes-128-gcm">2022-blake3-aes-128-gcm</option>
+                        <option value="2022-blake3-aes-256-gcm">2022-blake3-aes-256-gcm</option>
+                        <option value="2022-blake3-chacha20-poly1305">2022-blake3-chacha20-poly1305</option>
+                      </select>
+                    ) : (
+                      <select
+                        id="modal-security"
+                        className="form-input"
+                        value={security}
+                        onChange={(e) => setSecurity(e.target.value)}
+                        disabled={actionLoading}
+                      >
+                        <option value="tls">TLS</option>
+                        <option value="reality">Reality</option>
+                        <option value="none">None</option>
+                      </select>
+                    )}
                   </div>
 
-                  {(security === 'tls' || security === 'reality') && (
+                  {protocol !== 'shadowsocks' && (security === 'tls' || security === 'reality') && (
                     <div className="form-group">
                       <label className="form-label" htmlFor="modal-sni">SNI (Server Name Indication)</label>
                       <input

@@ -523,6 +523,26 @@ body {
   background: #374151;
 }
 
+/* Utility to hide scrollbar */
+.no-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}
+
+/* Hide scrollbar globally on mobile devices */
+@media (max-width: 768px) {
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  *::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
 /* Glow effects */
 .glow-cyan {
   box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
@@ -870,5 +890,89 @@ input[type="checkbox"]:disabled {
   color: #f87171;
   background: rgba(239, 68, 68, 0.15);
 }
+
+/* Disable tap highlight on mobile & prevent user selection on buttons */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, 
+.btn-primary, 
+.btn-secondary, 
+.form-button, 
+.btn-icon,
+.menu-item,
+.sidebar-toggle,
+.mobile-menu-btn,
+.stat-pill,
+.badge,
+.logout-button {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Styled Dropdown (Select) Menu to replace browser defaults */
+select.form-input {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 16px !important;
+  padding-right: 40px !important;
+  cursor: pointer !important;
+}
+
+select.form-input option {
+  background-color: var(--bg-modal-solid) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme='light'] select.form-input {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+}
+
+/* Mobile responsive helper overrides */
+@media (max-width: 768px) {
+  .settings-card {
+    padding: 1.25rem !important;
+  }
+  .modal-content-custom {
+    padding: 1.25rem !important;
+  }
+  /* Table wrapping on mobile */
+  .data-table th, .data-table td {
+    padding: 0.5rem 0.35rem !important;
+    font-size: 0.75rem !important;
+  }
+  /* Better layout grids on mobile */
+  .api-docs-container {
+    height: calc(100vh - 160px) !important;
+  }
+  /* Settings form responsive wrapping */
+  .settings-card form div,
+  .settings-card .two-factor-row {
+    flex-wrap: wrap !important;
+  }
+  .settings-card form button,
+  .settings-card .two-factor-row button {
+    width: 100% !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+  }
+  /* Custom Modal responsive wrapping */
+  .modal-content-custom button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .modal-content-custom div {
+    flex-wrap: wrap !important;
+  }
+}
+
+
 
 

@@ -8,6 +8,39 @@ from database import SessionLocal
 import models
 from xray_manager import rebuild_and_apply_xray_config
 
+# Telegram notifications cooldown
+_last_telegram_critical_alert = 0
+
+def send_telegram_notification(text: str):
+    db = SessionLocal()
+    try:
+        token_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "telegram_bot_token").first()
+        chat_id_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "telegram_chat_id").first()
+        bot_token = token_setting.value if token_setting else ""
+        chat_id = chat_id_setting.value if chat_id_setting else ""
+        if not bot_token or not chat_id:
+            return
+            
+        import urllib.request
+        import urllib.parse
+        import json
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "Markdown"
+        }
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            pass
+    except Exception as e:
+        print(f"Telegram notification error: {e}")
+    finally:
+        db.close()
+
 # In-memory caches
 # Key: client email, Value: bool
 ONLINE_USERS = {}
@@ -123,7 +156,7 @@ def load_initial_stats():
     update_system_status_cache()
 
 def update_system_status_cache():
-    global SYSTEM_STATUS_CACHE
+    global SYSTEM_STATUS_CACHE, _last_telegram_critical_alert
     try:
         cpu_percent = psutil.cpu_percent(interval=None)
         cpu_cores = psutil.cpu_count(logical=True)
@@ -197,20 +230,35 @@ def update_system_status_cache():
             "uptime": system_uptime,
             "xray_service_active": xray_active
         }
+
+        # Check critical system alert (> 90% CPU or RAM)
+        if cpu_percent > 90 or memory_percent > 90:
+            now = time.time()
+            if now - _last_telegram_critical_alert > 3600: # 1 hour cooldown
+                db = SessionLocal()
+                try:
+                    notify_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "telegram_notify_critical").first()
+                    if notify_setting and notify_setting.value == "true":
+                        msg = f"⚠️ *Kritik Sistem Uyarısı!*\nSunucu kaynak kullanımı kritik seviyeye ulaştı:\n\n💻 *CPU Kullanımı:* %{cpu_percent}\n💾 *Bellek Kullanımı:* %{memory_percent}"
+                        threading.Thread(target=send_telegram_notification, args=(msg,), daemon=True).start()
+                        _last_telegram_critical_alert = now
+                except Exception as db_err:
+                    print(f"Error querying notification setting: {db_err}")
+                finally:
+                    db.close()
     except Exception as e:
         print(f"Error updating system status cache: {e}")
 
 def write_deltas_to_db():
     global PENDING_TRAFFIC_DELTAS
     with deltas_lock:
-        if not PENDING_TRAFFIC_DELTAS:
-            return
         deltas_to_write = PENDING_TRAFFIC_DELTAS.copy()
         PENDING_TRAFFIC_DELTAS = {}
         
     db = SessionLocal()
     rebuild_needed = False
     try:
+        # 1. Update traffic and check bandwidth limit
         for email, delta in deltas_to_write.items():
             if delta["up"] == 0 and delta["down"] == 0:
                 continue
@@ -225,6 +273,29 @@ def write_deltas_to_db():
                         client.enable = False
                         rebuild_needed = True
                         print(f"Client {email} limit exceeded. Disabling client...")
+                        notify_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "telegram_notify_expiry").first()
+                        if notify_setting and notify_setting.value == "true":
+                            used_gb = round((client.up + client.down) / (1024**3), 2)
+                            msg = f"🚫 *Kullanıcı Trafik Sınırına Ulaştı*\nE-posta: `{client.email}`\nKota: {client.total_gb} GB\nTüketim: {used_gb} GB\nHesap devre dışı bırakıldı."
+                            threading.Thread(target=send_telegram_notification, args=(msg,), daemon=True).start()
+                            
+        # 2. Check expired clients
+        now_ms = int(time.time() * 1000)
+        expired_clients = db.query(models.Client).filter(
+            models.Client.enable == True,
+            models.Client.expiry_time > 0,
+            models.Client.expiry_time < now_ms
+        ).all()
+        for ec in expired_clients:
+            ec.enable = False
+            rebuild_needed = True
+            print(f"Client {ec.email} expired. Disabling...")
+            expiry_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ec.expiry_time / 1000.0))
+            notify_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "telegram_notify_expiry").first()
+            if notify_setting and notify_setting.value == "true":
+                msg = f"⏳ *Kullanıcı Süresi Doldu*\nE-posta: `{ec.email}`\nSon Kullanma: {expiry_str}\nHesap devre dışı bırakıldı."
+                threading.Thread(target=send_telegram_notification, args=(msg,), daemon=True).start()
+
         db.commit()
         if rebuild_needed:
             # Rebuild xray config in a background task or thread so we don't block
@@ -282,6 +353,10 @@ def collect_stats_loop():
         # 2. Fetch online users
         online_emails = fetch_online_users()
         
+        # Update active time on online users detection
+        for email in online_emails:
+            LAST_ACTIVE_TIME[email] = time.time()
+        
         # Fetch all current client emails from DB dynamically to ensure new/deleted clients are handled correctly
         db = SessionLocal()
         try:
@@ -304,8 +379,8 @@ def collect_stats_loop():
                 LAST_ACTIVE_TIME.pop(email, None)
                 REALTIME_TRAFFIC.pop(email, None)
                 continue
-            # Online if in online_emails list or active in last 10 seconds
-            is_online = (email in online_emails) or (now - LAST_ACTIVE_TIME.get(email, 0) < 10)
+            # Online if in online_emails list or active in last 30 seconds (balances disconnect detection and idle flickering)
+            is_online = (email in online_emails) or (now - LAST_ACTIVE_TIME.get(email, 0) < 30)
             ONLINE_USERS[email] = is_online
             
         # 2.5 Update system status cache

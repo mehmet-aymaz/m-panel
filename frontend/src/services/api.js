@@ -71,5 +71,51 @@ export const api = {
   resetClientTraffic: (id) => apiFetch(`/clients/${id}/reset-traffic`, { method: 'POST' }),
   getClientIpLogs: (id) => apiFetch(`/clients/${id}/ip-logs`),
   controlXray: (action) => apiFetch(`/system/xray/control?action=${action}`, { method: 'POST' }),
+  getXrayLogs: () => apiFetch('/system/logs'),
+  getAPITokens: () => apiFetch('/auth/api-tokens'),
+  createAPIToken: (data) => apiFetch('/auth/api-tokens', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAPIToken: (id) => apiFetch(`/auth/api-tokens/${id}`, { method: 'DELETE' }),
+  
+  // Settings & 2FA
+  getSettings: () => apiFetch('/settings/'),
+  updateSettings: (data) => apiFetch('/settings/', { method: 'PUT', body: JSON.stringify(data) }),
+  changePassword: (data) => apiFetch('/settings/change-password', { method: 'POST', body: JSON.stringify(data) }),
+  setup2FA: () => apiFetch('/settings/2fa/setup', { method: 'POST' }),
+  enable2FA: (code) => apiFetch('/settings/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
+  disable2FA: (code) => apiFetch('/settings/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) }),
+  testTelegram: () => apiFetch('/settings/telegram/test', { method: 'POST' }),
+  verifyLogin2FA: async (temp_token, code) => {
+    const data = await apiFetch('/auth/login/verify-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ temp_token, code }),
+    });
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+    }
+    return data;
+  },
+  downloadBackup: async () => {
+    const token = getAuthToken();
+    const response = await fetch('/api/settings/backup', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) throw new Error('Yedek oluşturulamadı.');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'm-panel-backup.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+  
+  checkUpdate: () => apiFetch('/update/check'),
+  getUpdateChangelog: () => apiFetch('/update/changelog'),
+  applyUpdate: (version) => apiFetch('/update/apply', { method: 'POST', body: JSON.stringify({ version }) }),
+  getUpdateStatus: () => apiFetch('/update/status')
 };
 

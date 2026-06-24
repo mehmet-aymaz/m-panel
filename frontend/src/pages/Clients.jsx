@@ -4,7 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import { api } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 
-import { Plus, Edit2, Trash2, CheckCircle, XCircle, RefreshCw, Key, AlertCircle, RotateCcw, Copy, Info, List, LayoutGrid, Eye, QrCode } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle, XCircle, RefreshCw, Key, AlertCircle, RotateCcw, Copy, Info, List, LayoutGrid, Eye, QrCode, Link2 } from 'lucide-react';
 
 export default function Clients() {
   const { t, showToast, confirm } = useSettings();
@@ -865,8 +865,7 @@ export default function Clients() {
                 <th>Inbound</th>
                 <th>{t('uuid')}</th>
                 <th>{t('limit_ip')}</th>
-                <th>{t('used_traffic')}</th>
-                <th>{t('limit_traffic')}</th>
+                <th>{t('traffic')}</th>
                 <th>{t('expiry')}</th>
                 <th>{t('status')}</th>
                 <th>{t('online')}</th>
@@ -876,7 +875,7 @@ export default function Clients() {
             <tbody>
               {processedClients.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                     {inbounds.length === 0 
                       ? 'Kullanıcı ekleyebilmek için önce en az bir inbound bağlantısı oluşturmalısınız.' 
                       : 'Kayıtlı kullanıcı bulunmuyor.'}
@@ -890,7 +889,7 @@ export default function Clients() {
 
                   return (
                     <tr key={client.id}>
-                      <td style={{ fontWeight: '600', maxWidth: '180px' }}>
+                      <td data-label={t('email')} style={{ fontWeight: '600', maxWidth: '180px' }}>
                         <div 
                           style={{ 
                             textOverflow: 'ellipsis', 
@@ -902,7 +901,7 @@ export default function Clients() {
                           {client.email}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Inbound">
                         <span 
                           className="badge badge-info"
                           style={{
@@ -918,7 +917,7 @@ export default function Clients() {
                           {formatInboundName(client.inbound_remark) || 'Bilinmiyor'}
                         </span>
                       </td>
-                      <td>
+                      <td data-label={t('uuid')}>
                         <div 
                           style={{ 
                             display: 'inline-flex', 
@@ -933,7 +932,7 @@ export default function Clients() {
                             color: 'var(--text-secondary)'
                           }}
                         >
-                          <span title={client.uuid}>{client.uuid.substring(0, 8)}...{client.uuid.substring(client.uuid.length - 8)}</span>
+                          <span title={client.uuid}>{client.uuid.substring(0, 8)}...</span>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -959,7 +958,7 @@ export default function Clients() {
                           </button>
                         </div>
                       </td>
-                      <td>
+                      <td data-label={t('limit_ip')}>
                         {client.limit_ip > 0 ? (
                           <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontSize: '0.8rem', fontWeight: '600' }}>
                             {client.limit_ip}
@@ -968,23 +967,24 @@ export default function Clients() {
                           <span style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', fontWeight: '600' }}>∞</span>
                         )}
                       </td>
-                      <td>
-                        <span className="badge" style={{ background: 'rgba(147, 51, 234, 0.1)', color: '#a855f7', fontSize: '0.8rem', fontWeight: '500' }}>
-                          {formatTraffic(client.up + client.down)}
-                        </span>
-                      </td>
-                      <td>
-                        {client.total_gb > 0 ? (
-                          <span className="badge" style={{ background: 'rgba(249, 115, 22, 0.1)', color: '#fdba74', fontSize: '0.8rem', fontWeight: '500' }}>
-                            {client.total_gb} GB
+                      <td data-label={t('traffic')}>
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                          <span className="badge" style={{ background: 'rgba(147, 51, 234, 0.1)', color: '#a855f7', fontSize: '0.8rem', fontWeight: '500' }}>
+                            {formatTraffic(client.up + client.down)}
                           </span>
-                        ) : (
-                          <span className="badge" style={{ background: 'rgba(156, 163, 175, 0.1)', color: '#9ca3af', fontSize: '0.9rem', fontWeight: '500' }}>
-                            ∞
-                          </span>
-                        )}
+                          <span style={{ color: 'var(--text-muted)' }}>/</span>
+                          {client.total_gb > 0 ? (
+                            <span className="badge" style={{ background: 'rgba(249, 115, 22, 0.1)', color: '#fdba74', fontSize: '0.8rem', fontWeight: '500' }}>
+                              {client.total_gb} GB
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ background: 'rgba(156, 163, 175, 0.1)', color: '#9ca3af', fontSize: '0.9rem', fontWeight: '500' }}>
+                              ∞
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td>
+                      <td data-label={t('expiry')}>
                         {client.expiry_time > 0 ? (
                           <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#93c5fd', fontSize: '0.8rem', fontWeight: '500' }}>
                             {formatExpiry(client.expiry_time)}
@@ -995,7 +995,7 @@ export default function Clients() {
                           </span>
                         )}
                       </td>
-                      <td>
+                      <td data-label={t('status')}>
                         <button 
                           onClick={() => handleToggle(client)} 
                           disabled={actionLoading}
@@ -1021,7 +1021,7 @@ export default function Clients() {
                           )}
                         </button>
                       </td>
-                      <td>
+                      <td data-label={t('online')}>
                         {client.online ? (
                           <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                             <span className="online-pulse-dot"></span> {t('online')}
@@ -1032,8 +1032,21 @@ export default function Clients() {
                           </span>
                         )}
                       </td>
-                      <td>
+                      <td data-label={t('actions')}>
                         <div className="actions-cell">
+                          <button 
+                            className="btn-icon" 
+                            title="Abonelik Linkini Kopyala" 
+                            onClick={() => {
+                              const subUrl = `${window.location.protocol}//${window.location.host}/api/sub/${client.uuid}`;
+                              navigator.clipboard.writeText(subUrl);
+                              showToast('Abonelik linki kopyalandı!', 'success');
+                            }}
+                            disabled={actionLoading}
+                            style={{ color: 'var(--accent-purple)' }}
+                          >
+                            <Link2 size={14} />
+                          </button>
                           <button 
                             className="btn-icon" 
                             title={t('client_details')} 
@@ -1201,6 +1214,19 @@ export default function Clients() {
 
                   {/* Actions row */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: 'auto' }}>
+                    <button 
+                      className="btn-icon" 
+                      title="Abonelik Linkini Kopyala" 
+                      onClick={() => {
+                        const subUrl = `${window.location.protocol}//${window.location.host}/api/sub/${client.uuid}`;
+                        navigator.clipboard.writeText(subUrl);
+                        showToast('Abonelik linki kopyalandı!', 'success');
+                      }}
+                      disabled={actionLoading}
+                      style={{ color: 'var(--accent-purple)' }}
+                    >
+                      <Link2 size={14} />
+                    </button>
                     <button 
                       className="btn-icon" 
                       title={t('client_details')} 

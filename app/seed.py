@@ -56,6 +56,22 @@ def seed_db():
             print(f"--> Admin kullanıcısı başarıyla oluşturuldu: {admin_username}")
         else:
             print(f"--> Admin kullanıcısı zaten mevcut: {admin_username}")
+            
+        # Seed default system settings
+        default_settings = {
+            "session_timeout": "1440",
+            "telegram_bot_token": "",
+            "telegram_chat_id": "",
+            "telegram_notify_critical": "true",
+            "telegram_notify_expiry": "true",
+            "sub_link_prefix": ""
+        }
+        for k, v in default_settings.items():
+            setting_exists = db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first()
+            if not setting_exists:
+                db.add(models.SystemSetting(key=k, value=v))
+                print(f"--> Varsayılan ayar oluşturuldu: {k} = '{v}'")
+        db.commit()
     except Exception as e:
         print(f"HATA: Seed işlemi sırasında bir sorun oluştu: {e}")
         db.rollback()

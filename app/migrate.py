@@ -114,8 +114,16 @@ def migrate():
                     with open(file_path, "r", encoding="utf-8") as f:
                         sql_script = f.read()
                     
-                    # Split commands by semicolon and execute them
-                    cursor.executescript(sql_script)
+                    # Split commands by semicolon and execute them individually
+                    statements = [s.strip() for s in sql_script.split(";") if s.strip()]
+                    for stmt in statements:
+                        try:
+                            cursor.execute(stmt)
+                        except sqlite3.OperationalError as e:
+                            if "duplicate column name" in str(e) or "already exists" in str(e):
+                                print(f"Uyarı: Geçici çakışma atlanıyor: {e}")
+                            else:
+                                raise e
                     
                     # Log to migrations table
                     cursor.execute(

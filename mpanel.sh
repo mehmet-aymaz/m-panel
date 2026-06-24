@@ -217,6 +217,8 @@ EOF
     
     echo -e "${YELLOW}Certbot SSL sertifikası alınıyor... / Obtaining Certbot SSL certificate...${NC}"
     if certbot --nginx -d "$domain" --non-interactive --agree-tos --register-unsafely-without-email; then
+        ufw allow 443/tcp &> /dev/null || true
+        ufw reload &> /dev/null || true
         echo -e "${GREEN}SSL sertifikası başarıyla alındı ve Nginx yapılandırıldı! / SSL certificate successfully obtained!${NC}"
         echo -e "${GREEN}Artık https://${domain} adresi ile güvenli şekilde erişebilirsiniz. / You can now access via https://${domain}${NC}"
     else

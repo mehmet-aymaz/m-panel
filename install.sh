@@ -432,6 +432,7 @@ configure_ufw() {
     # Allow ports
     ufw allow 22/tcp || true
     ufw allow 80/tcp || true
+    ufw allow 443/tcp || true
     ufw allow "$PANEL_PORT"/tcp || true
 
     # Enable firewall

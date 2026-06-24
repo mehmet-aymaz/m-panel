@@ -20,7 +20,7 @@ show_menu() {
     echo -e "  4. Durum Kontrolü / Check Status"
     echo -e "  5. Logları Görüntüle / View Backend Logs"
     echo -e "  6. Yönetici Bilgilerini Göster / Show Admin Credentials"
-    echo -e "  7. Yönetici Şifresini Değiştir / Change Admin Password"
+    echo -e "  7. Yönetici Bilgilerini Güncelle / Update Admin Credentials"
     echo -e "  8. Paneli Kaldır / Uninstall M-Panel"
     echo -e "  0. Çıkış / Exit"
     echo -e "${BLUE}================================================================${NC}"
@@ -78,37 +78,61 @@ show_credentials() {
     read -n 1 -s -r -p "Devam etmek için bir tuşa basın... / Press any key to continue..."
 }
 
-change_password() {
+change_credentials() {
     ENV_FILE="/opt/m-panel/app/.env"
     DB_PATH="/opt/m-panel/app/data/panel.db"
     
-    echo -e "\n--- Şifre Değiştirme / Change Password ---"
-    echo -n "Yeni Şifreyi Girin / Enter new password: "
-    read -r new_pass
+    echo -e "\n--- Yönetici Bilgilerini Güncelle / Update Admin Credentials ---"
     
-    if [ -z "$new_pass" ]; then
-        echo -e "${RED}HATA: Şifre boş olamaz! / ERROR: Password cannot be empty!${NC}"
-        sleep 2
-        return
+    local current_user="admin"
+    if [ -f "$ENV_FILE" ]; then
+        current_user=$(grep "ADMIN_USERNAME=" "$ENV_FILE" | cut -d'=' -f2)
     fi
     
-    echo -e "${YELLOW}Şifre veritabanında güncelleniyor... / Updating password...${NC}"
+    echo -n "Yeni Kullanıcı Adı / Enter new username [Varsayılan/Default: $current_user]: "
+    read -r new_user
+    if [ -z "$new_user" ]; then
+        new_user=$current_user
+    fi
+    
+    echo -n "Yeni Şifre / Enter new password (Boş bırakırsanız değişmez / Leave empty to keep current): "
+    read -r new_pass
+    
+    echo -e "${YELLOW}Veritabanı güncelleniyor... / Updating database...${NC}"
     
     # Run inline python to update SQLite DB safely using venv
     /opt/m-panel/venv/bin/python -c "
-import sqlite3, bcrypt, os
-hashed = bcrypt.hashpw('$new_pass'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+import sqlite3, bcrypt
 conn = sqlite3.connect('$DB_PATH')
 c = conn.cursor()
-c.execute(\"UPDATE admin_users SET password_hash = ? WHERE username = 'admin'\", (hashed,))
-conn.commit()
+c.execute(\"SELECT id, password_hash FROM admin_users WHERE username = ?\", ('$current_user',))
+row = c.fetchone()
+if not row:
+    c.execute(\"SELECT id, password_hash FROM admin_users LIMIT 1\")
+    row = c.fetchone()
+
+if row:
+    user_id = row[0]
+    old_hash = row[1]
+    hashed = old_hash
+    if '$new_pass' != '':
+        hashed = bcrypt.hashpw('$new_pass'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    c.execute(\"UPDATE admin_users SET username = ?, password_hash = ? WHERE id = ?\", ('$new_user', hashed, user_id))
+    conn.commit()
+else:
+    print('FAILED: User not found')
 conn.close()
 "
     
     # Update .env
-    sed -i "s|ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$new_pass|" "$ENV_FILE"
+    if [ -f "$ENV_FILE" ]; then
+        sed -i "s|ADMIN_USERNAME=.*|ADMIN_USERNAME=$new_user|" "$ENV_FILE"
+        if [ -n "$new_pass" ]; then
+            sed -i "s|ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$new_pass|" "$ENV_FILE"
+        fi
+    fi
     
-    echo -e "${GREEN}Şifre başarıyla değiştirildi! / Password changed successfully!${NC}"
+    echo -e "${GREEN}Yönetici bilgileri başarıyla güncellendi! / Admin credentials updated successfully!${NC}"
     echo ""
     read -n 1 -s -r -p "Devam etmek için bir tuşa basın... / Press any key to continue..."
 }
@@ -175,7 +199,7 @@ main() {
                 show_credentials
                 ;;
             7)
-                change_password
+                change_credentials
                 ;;
             8)
                 uninstall_panel

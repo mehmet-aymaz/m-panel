@@ -57,6 +57,9 @@ def run_update_task(new_version: str):
         status_data["step_label"] = "Kod güncelleniyor (git pull)..."
         save_update_status(status_data)
         
+        # Reset local changes first to prevent merge conflicts
+        subprocess.run(["git", "reset", "--hard"], cwd="/opt/m-panel")
+        
         # Git pull from local repo directory
         res = subprocess.run(["git", "pull"], cwd="/opt/m-panel", capture_output=True, text=True)
         if res.returncode != 0:

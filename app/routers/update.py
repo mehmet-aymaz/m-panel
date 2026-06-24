@@ -147,21 +147,20 @@ def run_update_task(new_version: str):
 def check_update(current_user: models.AdminUser = Depends(get_current_user)):
     current_version = os.getenv("PANEL_VERSION", "v1.0.0")
     latest_version = "v1.0.0"
-    release_url = ""
+    release_url = "https://github.com/mehmet-aymaz/m-panel/releases/latest"
     update_available = False
     
     try:
         req = urllib.request.Request(
-            "https://api.github.com/repos/mehmet-aymaz/m-panel/releases/latest",
-            headers={"User-Agent": "M-Panel-App"}
+            "https://github.com/mehmet-aymaz/m-panel/releases/latest",
+            headers={"User-Agent": "Mozilla/5.0"}
         )
         with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode())
-            latest_version = data.get("tag_name", "v1.0.0")
-            release_url = data.get("html_url", "")
+            final_url = response.geturl()
+            latest_version = final_url.split("/")[-1]
             
             # Simple version tag comparison
-            if latest_version != current_version:
+            if latest_version != current_version and latest_version.startswith("v"):
                 update_available = True
     except Exception as e:
         # Silently fail and log in console

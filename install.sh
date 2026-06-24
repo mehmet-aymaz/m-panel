@@ -153,6 +153,11 @@ uninstall() {
     rm -rf /opt/m-panel
     rm -rf /var/www/m-panel
 
+    # Remove CLI shortcuts
+    echo -e "${YELLOW}CLI kısayolları siliniyor... / Deleting CLI shortcuts...${NC}"
+    rm -f /usr/local/bin/mpanel
+    rm -f /usr/local/bin/m-panel
+
     # Remove Xray binary and configs
     echo -e "${YELLOW}Xray dosyaları siliniyor... / Deleting Xray files...${NC}"
     rm -f /usr/local/bin/xray
@@ -302,7 +307,7 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=$ADMIN_PASSWORD
 JWT_SECRET_KEY=$JWT_SECRET_KEY
 DATABASE_URL=sqlite:////opt/m-panel/app/data/panel.db
-PANEL_VERSION=v1.0.0
+PANEL_VERSION=v1.1.0
 EOF
 
     chmod 600 /opt/m-panel/app/.env
@@ -470,6 +475,15 @@ start_services() {
     echo -e "${GREEN}Bütün servisler başarıyla başlatıldı. / All services started successfully.${NC}"
 }
 
+# Step 9: Setup CLI Wrapper
+setup_cli() {
+    echo -e "${YELLOW}CLI yönetim kısayolları oluşturuluyor... / Setting up CLI management shortcuts...${NC}"
+    cp -f /opt/m-panel/mpanel.sh /usr/local/bin/mpanel
+    chmod +x /usr/local/bin/mpanel
+    ln -sf /usr/local/bin/mpanel /usr/local/bin/m-panel
+    echo -e "${GREEN}CLI kısayolları 'mpanel' ve 'm-panel' olarak oluşturuldu. / CLI shortcuts created as 'mpanel' and 'm-panel'.${NC}"
+}
+
 # Health check logic
 health_check() {
     echo -e "${YELLOW}Sağlık kontrolü yapılıyor... / Running health check...${NC}"
@@ -513,7 +527,9 @@ print_summary() {
     echo -e "${GREEN}  🌐 Adres / URL    : http://${server_ip}:${PANEL_PORT}${NC}"
     echo -e "${GREEN}  👤 Kullanıcı / User: admin${NC}"
     echo -e "${GREEN}  🔑 Şifre / Password: ${ADMIN_PASSWORD}${NC}"
-    echo -e "${GREEN}  📦 Sürüm / Version  : v1.0.0${NC}"
+    echo -e "${GREEN}  📦 Sürüm / Version  : v1.1.0${NC}"
+    echo -e "${GREEN}  💻 Yönetim / CLI   : Sunucuda 'mpanel' veya 'm-panel' yazın${NC}"
+    echo -e "${GREEN}                       Type 'mpanel' or 'm-panel' on the server${NC}"
     echo -e "${GREEN}════════════════════════════════════════════════════════════════${NC}"
     echo -e "${YELLOW}  ⚠️  Şifreyi kaydedin! Tekrar gösterilmez.${NC}"
     echo -e "${YELLOW}  ⚠️  Save this password! It will not be shown again.${NC}"
@@ -543,6 +559,7 @@ main() {
     configure_nginx
     configure_ufw
     start_services
+    setup_cli
     health_check
     print_summary
 }

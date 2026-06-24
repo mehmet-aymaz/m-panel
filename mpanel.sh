@@ -21,10 +21,11 @@ show_menu() {
     echo -e "  5. Logları Görüntüle / View Backend Logs"
     echo -e "  6. Yönetici Bilgilerini Göster / Show Admin Credentials"
     echo -e "  7. Yönetici Bilgilerini Güncelle / Update Admin Credentials"
-    echo -e "  8. Paneli Kaldır / Uninstall M-Panel"
+    echo -e "  8. SSL Sertifikası Al (Let's Encrypt) / Get SSL Certificate"
+    echo -e "  9. Paneli Kaldır / Uninstall M-Panel"
     echo -e "  0. Çıkış / Exit"
     echo -e "${BLUE}================================================================${NC}"
-    echo -n "Seçiminiz / Enter choice [0-8]: "
+    echo -n "Seçiminiz / Enter choice [0-9]: "
 }
 
 get_status() {
@@ -137,6 +138,96 @@ conn.close()
     read -n 1 -s -r -p "Devam etmek için bir tuşa basın... / Press any key to continue..."
 }
 
+setup_ssl() {
+    echo -e "\n--- SSL Sertifikası Al / Get SSL Certificate ---"
+    echo -n "Domain adını girin / Enter domain name (örn: panel.mehmetaymaz.com.tr): "
+    read -r domain
+    
+    if [ -z "$domain" ]; then
+        echo -e "${RED}HATA: Alan adı boş olamaz! / ERROR: Domain name cannot be empty!${NC}"
+        sleep 2
+        return
+    fi
+    
+    # Check if certbot is installed
+    if ! command -v certbot &> /dev/null; then
+        echo -e "${YELLOW}Certbot kuruluyor... / Installing certbot...${NC}"
+        apt-get update && apt-get install -y certbot python3-certbot-nginx
+    fi
+    
+    # Read the current port from nginx config
+    local port=2053
+    if [ -f "/etc/nginx/sites-available/m-panel" ]; then
+        port=$(grep -E 'listen\s+[0-9]+' /etc/nginx/sites-available/m-panel | awk '{print $2}' | tr -d ';' | head -n 1)
+    fi
+    if [ -z "$port" ]; then
+        port=2053
+    fi
+    
+    echo -e "${YELLOW}Nginx yapılandırması domain için güncelleniyor... / Updating Nginx config for domain...${NC}"
+    
+    # Generate temporary server block for port 80 and the domain, keeping port $port untouched
+    cat <<EOF > /etc/nginx/sites-available/m-panel
+server {
+    listen $port;
+    server_tokens off;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        root /var/www/m-panel;
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+
+server {
+    listen 80;
+    server_name $domain;
+    server_tokens off;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        root /var/www/m-panel;
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+EOF
+
+    if ! nginx -t; then
+        echo -e "${RED}HATA: Nginx yapılandırma testi başarısız! / ERROR: Nginx configuration test failed!${NC}"
+        echo ""
+        read -n 1 -s -r -p "Devam etmek için bir tuşa basın... / Press any key to continue..."
+        return
+    fi
+    
+    systemctl reload nginx
+    
+    echo -e "${YELLOW}Certbot SSL sertifikası alınıyor... / Obtaining Certbot SSL certificate...${NC}"
+    if certbot --nginx -d "$domain" --non-interactive --agree-tos --register-unsafely-without-email; then
+        echo -e "${GREEN}SSL sertifikası başarıyla alındı ve Nginx yapılandırıldı! / SSL certificate successfully obtained!${NC}"
+        echo -e "${GREEN}Artık https://${domain} adresi ile güvenli şekilde erişebilirsiniz. / You can now access via https://${domain}${NC}"
+    else
+        echo -e "${RED}HATA: SSL sertifikası alınamadı! DNS A kaydının bu sunucuya yönlendiğinden emin olun.${NC}"
+        echo -e "${RED}ERROR: Failed to obtain SSL certificate. Make sure DNS A record points to this server.${NC}"
+    fi
+    
+    echo ""
+    read -n 1 -s -r -p "Devam etmek için bir tuşa basın... / Press any key to continue..."
+}
+
 uninstall_panel() {
     echo -e "${RED}================================================================${NC}"
     echo -e "${RED}  ⚠️  DİKKAT: M-Panel tamamen kaldırılacaktır!${NC}"
@@ -202,6 +293,9 @@ main() {
                 change_credentials
                 ;;
             8)
+                setup_ssl
+                ;;
+            9)
                 uninstall_panel
                 ;;
             0)

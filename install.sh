@@ -163,14 +163,14 @@ uninstall() {
     rm -f /usr/local/bin/xray
     rm -rf /usr/local/etc/xray
 
-    # Retrieve panel port from Nginx configuration if possible, to remove UFW rule
+    # Retrieve panel ports from Nginx configuration if possible, to remove UFW rules
     if [ -f "/etc/nginx/sites-available/m-panel" ]; then
-        local old_port
-        old_port=$(grep -E 'listen\s+[0-9]+' /etc/nginx/sites-available/m-panel | awk '{print $2}' | tr -d ';')
-        if [ -n "$old_port" ]; then
-            echo -e "${YELLOW}UFW kuralı kaldırılıyor ($old_port)... / Removing UFW rule ($old_port)...${NC}"
-            ufw delete allow "$old_port"/tcp || true
-        fi
+        grep -E 'listen\s+[0-9]+' /etc/nginx/sites-available/m-panel | awk '{print $2}' | tr -d ';' | sort -u | while read -r port; do
+            if [ -n "$port" ]; then
+                echo -e "${YELLOW}UFW kuralı kaldırılıyor ($port)... / Removing UFW rule ($port)...${NC}"
+                ufw delete allow "$port"/tcp || true
+            fi
+        done
     fi
 
     # Remove Nginx configurations
@@ -418,8 +418,8 @@ EOF
         exit 1
     fi
 
-    # Reload nginx
-    systemctl reload nginx
+    # Reload or restart nginx
+    systemctl reload nginx || systemctl restart nginx || true
     echo -e "${GREEN}Nginx yapılandırması başarıyla tamamlandı. / Nginx configuration completed successfully.${NC}"
 }
 

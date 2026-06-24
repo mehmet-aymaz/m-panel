@@ -152,7 +152,7 @@ def check_update(current_user: models.AdminUser = Depends(get_current_user)):
     
     try:
         req = urllib.request.Request(
-            "https://api.github.com/repos/mehmetaymaz/m-panel/releases/latest",
+            "https://api.github.com/repos/mehmet-aymaz/m-panel/releases/latest",
             headers={"User-Agent": "M-Panel-App"}
         )
         with urllib.request.urlopen(req, timeout=5) as response:
@@ -183,7 +183,7 @@ def get_changelog(current_user: models.AdminUser = Depends(get_current_user)):
     
     try:
         req = urllib.request.Request(
-            "https://api.github.com/repos/mehmetaymaz/m-panel/releases/latest",
+            "https://api.github.com/repos/mehmet-aymaz/m-panel/releases/latest",
             headers={"User-Agent": "M-Panel-App"}
         )
         with urllib.request.urlopen(req, timeout=5) as response:

@@ -38,7 +38,7 @@ class NodeUpdate(BaseModel):
 
 class NodeResponse(NodeBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     last_seen: Optional[datetime] = None
 
     class Config:

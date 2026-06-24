@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Radio, Users, LogOut, ChevronLeft, ChevronRight, Terminal, BookOpen, Key, Settings } from 'lucide-react';
+import { LayoutDashboard, Radio, Users, LogOut, ChevronLeft, ChevronRight, Terminal, BookOpen, Key, Settings, Server } from 'lucide-react';
 import { logout } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -86,6 +86,15 @@ export default function Sidebar({ isOpen, onClose }) {
           >
             <Users size={20} />
             <span>{t('client_mgmt')}</span>
+          </NavLink>
+
+          <NavLink 
+            to="/nodes" 
+            className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+            onClick={handleLinkClick}
+          >
+            <Server size={20} />
+            <span>{t('nodes_title')}</span>
           </NavLink>
 
           <NavLink 

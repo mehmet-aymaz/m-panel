@@ -116,6 +116,15 @@ export const api = {
   checkUpdate: () => apiFetch('/update/check'),
   getUpdateChangelog: () => apiFetch('/update/changelog'),
   applyUpdate: (version) => apiFetch('/update/apply', { method: 'POST', body: JSON.stringify({ version }) }),
-  getUpdateStatus: () => apiFetch('/update/status')
+  getUpdateStatus: () => apiFetch('/update/status'),
+  
+  // Nodes API
+  getNodes: () => apiFetch('/nodes/'),
+  createNode: (data) => apiFetch('/nodes/', { method: 'POST', body: JSON.stringify(data) }),
+  updateNode: (id, data) => apiFetch(`/nodes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNode: (id) => apiFetch(`/nodes/${id}`, { method: 'DELETE' }),
+  testNode: (id) => apiFetch(`/nodes/${id}/test`, { method: 'POST' }),
+  getNodeStats: (id) => apiFetch(`/nodes/${id}/stats`),
+  syncNode: (id) => apiFetch(`/nodes/${id}/sync`, { method: 'POST' })
 };
 

@@ -33,9 +33,18 @@ def is_client_active(client) -> bool:
             
     return True
 
-def generate_config(db: Session) -> str:
-    # Query all active/enabled inbounds
-    inbounds = db.query(models.Inbound).filter(models.Inbound.enable == True).all()
+def generate_config(db: Session, node_id: int = None) -> str:
+    # Query all active/enabled inbounds for the specified node
+    if node_id is None or node_id == 1:
+        inbounds = db.query(models.Inbound).filter(
+            models.Inbound.enable == True,
+            (models.Inbound.node_id == None) | (models.Inbound.node_id == 1)
+        ).all()
+    else:
+        inbounds = db.query(models.Inbound).filter(
+            models.Inbound.enable == True,
+            models.Inbound.node_id == node_id
+        ).all()
     
     xray_inbounds = []
     for inbound in inbounds:
@@ -409,11 +418,14 @@ def rebuild_and_apply_xray_config():
         except Exception as e:
             print(f"Warning: Failed to copy certificates: {e}")
 
-        # Automatically allow enabled inbound ports in firewall
-        active_inbounds = db.query(models.Inbound).filter(models.Inbound.enable == True).all()
+        # Automatically allow enabled inbound ports in firewall (local only)
+        active_inbounds = db.query(models.Inbound).filter(
+            models.Inbound.enable == True,
+            (models.Inbound.node_id == None) | (models.Inbound.node_id == 1)
+        ).all()
         for ib in active_inbounds:
             ufw_allow_port(ib.port)
-        config_str = generate_config(db)
+        config_str = generate_config(db, node_id=1)
         apply_config(config_str)
     finally:
         db.close()

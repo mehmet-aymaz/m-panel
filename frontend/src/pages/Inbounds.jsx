@@ -22,6 +22,8 @@ export default function Inbounds() {
   const [protocol, setProtocol] = useState('vless');
   const [port, setPort] = useState('');
   const [enable, setEnable] = useState(true);
+  const [nodes, setNodes] = useState([]);
+  const [nodeId, setNodeId] = useState(1);
   
   // Extended fields
   const [network, setNetwork] = useState('ws');
@@ -67,8 +69,18 @@ export default function Inbounds() {
     }
   };
 
+  const fetchNodes = async () => {
+    try {
+      const data = await api.getNodes();
+      setNodes(data);
+    } catch (err) {
+      console.error('Nodes could not be fetched:', err);
+    }
+  };
+
   useEffect(() => {
     fetchInbounds();
+    fetchNodes();
     const interval = setInterval(fetchInbounds, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -101,6 +113,7 @@ export default function Inbounds() {
     setProtocol('vless');
     setPort('');
     setEnable(true);
+    setNodeId(nodes.length > 0 ? nodes[0].id : 1);
     
     // Reset extended fields
     setNetwork('ws');
@@ -125,6 +138,7 @@ export default function Inbounds() {
     setProtocol(inbound.protocol);
     setPort(inbound.port.toString());
     setEnable(inbound.enable);
+    setNodeId(inbound.node_id || 1);
     
     // Set extended fields
     setNetwork(inbound.network || 'ws');
@@ -197,6 +211,7 @@ export default function Inbounds() {
       protocol: protocol.toLowerCase(),
       port: parseInt(port),
       enable,
+      node_id: parseInt(nodeId),
       network: network.toLowerCase(),
       security: security.toLowerCase(),
       sni: (security === 'tls' || security === 'reality') ? sni : null,
@@ -286,6 +301,7 @@ export default function Inbounds() {
                 <th style={{ width: '60px' }}>ID</th>
                 <th style={{ width: '80px' }}>{t('status') || 'Etkin'}</th>
                 <th>{t('remark')}</th>
+                <th>{t('nodes_name') || 'Düğüm'}</th>
                 <th>{t('port')}</th>
                 <th>{t('protocol')}</th>
                 <th>{t('client_count') || 'Kullanıcılar'}</th>
@@ -297,7 +313,7 @@ export default function Inbounds() {
             <tbody>
               {inbounds.length === 0 ? (
                 <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan="10" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                     {t('no_inbounds')}
                   </td>
                 </tr>
@@ -317,6 +333,11 @@ export default function Inbounds() {
                       </label>
                     </td>
                     <td data-label={t('remark')} style={{ fontWeight: '600' }}>{inbound.remark || '-'}</td>
+                    <td data-label={t('nodes_name') || 'Düğüm'}>
+                      <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', borderRadius: '4px' }}>
+                        {nodes.find(n => n.id === inbound.node_id)?.name || (inbound.node_id === 1 ? 'Local Node' : `Node #${inbound.node_id || 1}`)}
+                      </span>
+                    </td>
                     <td data-label={t('port')}>
                       <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-cyan)', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'bold' }}>
                         {inbound.port}
@@ -462,6 +483,29 @@ export default function Inbounds() {
                         required
                         disabled={actionLoading}
                       />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="modal-node">{t('nodes_name') || 'Sunucu'}</label>
+                      <select
+                        id="modal-node"
+                        className="form-input"
+                        value={nodeId}
+                        onChange={(e) => setNodeId(e.target.value)}
+                        disabled={actionLoading}
+                      >
+                        {nodes.length === 0 ? (
+                          <option value={1}>Local Node</option>
+                        ) : (
+                          nodes.map(node => (
+                            <option key={node.id} value={node.id}>
+                              {node.name} ({node.host})
+                            </option>
+                          ))
+                        )}
+                      </select>
                     </div>
                   </div>
 

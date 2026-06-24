@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from database import engine, Base
-from routers import auth, system, dashboard, inbounds, clients, public, settings, update
+from routers import auth, system, dashboard, inbounds, clients, public, settings, update, nodes
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -735,3 +735,4 @@ app.include_router(inbounds.router)
 app.include_router(clients.router)
 app.include_router(settings.router)
 app.include_router(update.router)
+app.include_router(nodes.router)

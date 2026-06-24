@@ -22,6 +22,7 @@ class InboundBase(BaseModel):
     ws_host: Optional[str] = None
     sniffing_enabled: Optional[bool] = True
     grpc_service_name: Optional[str] = None
+    node_id: Optional[int] = None
 
 class InboundCreate(InboundBase):
     pass
@@ -40,6 +41,7 @@ class InboundUpdate(BaseModel):
     ws_host: Optional[str] = None
     sniffing_enabled: Optional[bool] = None
     grpc_service_name: Optional[str] = None
+    node_id: Optional[int] = None
 
 class ClientResponse(BaseModel):
     id: int
@@ -78,6 +80,7 @@ class InboundResponse(BaseModel):
     ws_host: Optional[str]
     sniffing_enabled: bool
     grpc_service_name: Optional[str]
+    node_id: Optional[int]
     clients: List[ClientResponse] = []
     total_clients: int = 0
     active_clients: int = 0
@@ -129,6 +132,16 @@ def create_inbound(
     db: Session = Depends(get_db), 
     current_user: models.AdminUser = Depends(get_current_user)
 ):
+    node_id = inbound_in.node_id or 1
+    
+    # Check if target node exists
+    node = db.query(models.Node).filter(models.Node.id == node_id).first()
+    if not node:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Seçilen sunucu (Node ID: {node_id}) bulunamadı."
+        )
+
     # Reserved ports check (System and panel reserve ports)
     RESERVED_PORTS = [22, 80, 443, 8000, 8443]
     if inbound_in.port in RESERVED_PORTS:
@@ -144,12 +157,15 @@ def create_inbound(
             detail=f"{inbound_in.port} portu {port_desc} tarafından kullanılıyor. Lütfen inbound için farklı bir port girin."
         )
 
-    # Port collision check
-    existing = db.query(models.Inbound).filter(models.Inbound.port == inbound_in.port).first()
+    # Port collision check on the same node
+    existing = db.query(models.Inbound).filter(
+        models.Inbound.port == inbound_in.port,
+        models.Inbound.node_id == node_id
+    ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{inbound_in.port} portu zaten başka bir inbound tarafından kullanılıyor."
+            detail=f"{inbound_in.port} portu bu sunucuda zaten başka bir inbound tarafından kullanılıyor."
         )
 
     # Validation: gRPC needs service name
@@ -174,7 +190,8 @@ def create_inbound(
         ws_path=inbound_in.ws_path if inbound_in.ws_path else "/",
         ws_host=inbound_in.ws_host,
         sniffing_enabled=inbound_in.sniffing_enabled if inbound_in.sniffing_enabled is not None else True,
-        grpc_service_name=inbound_in.grpc_service_name
+        grpc_service_name=inbound_in.grpc_service_name,
+        node_id=node_id
     )
     
     db.add(db_inbound)
@@ -183,13 +200,14 @@ def create_inbound(
         # Flush so changes are visible to generate_config in the transaction
         db.flush()
         
-        # Apply to Xray
-        config_str = generate_config(db)
-        apply_config(config_str)
-        
-        # Open port in UFW if enabled
-        if db_inbound.enable:
-            ufw_allow_port(db_inbound.port)
+        # Apply to Xray only if local
+        if node_id == 1:
+            config_str = generate_config(db, node_id=1)
+            apply_config(config_str)
+            
+            # Open port in UFW if enabled
+            if db_inbound.enable:
+                ufw_allow_port(db_inbound.port)
         
         # Commit database changes on success
         db.commit()
@@ -218,9 +236,24 @@ def update_inbound(
         )
 
     old_port = db_inbound.port
+    was_local = db_inbound.node_id is None or db_inbound.node_id == 1
     port_changed = False
 
-    if inbound_in.port is not None and inbound_in.port != db_inbound.port:
+    # Handle node_id transition
+    if inbound_in.node_id is not None:
+        node = db.query(models.Node).filter(models.Node.id == inbound_in.node_id).first()
+        if not node:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Seçilen sunucu (Node ID: {inbound_in.node_id}) bulunamadı."
+            )
+        db_inbound.node_id = inbound_in.node_id
+        
+    is_local = db_inbound.node_id is None or db_inbound.node_id == 1
+    current_node_id = db_inbound.node_id or 1
+
+    # Port collision check
+    if inbound_in.port is not None and inbound_in.port != old_port:
         RESERVED_PORTS = [22, 80, 443, 8000, 8443]
         if inbound_in.port in RESERVED_PORTS:
             port_desc = {
@@ -234,11 +267,14 @@ def update_inbound(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"{inbound_in.port} portu {port_desc} tarafından kullanılıyor. Lütfen inbound için farklı bir port girin."
             )
-        existing = db.query(models.Inbound).filter(models.Inbound.port == inbound_in.port).first()
+        existing = db.query(models.Inbound).filter(
+            models.Inbound.port == inbound_in.port,
+            models.Inbound.node_id == current_node_id
+        ).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{inbound_in.port} portu zaten başka bir inbound tarafından kullanılıyor."
+                detail=f"{inbound_in.port} portu bu sunucuda zaten başka bir inbound tarafından kullanılıyor."
             )
         db_inbound.port = inbound_in.port
         port_changed = True
@@ -282,19 +318,28 @@ def update_inbound(
 
     try:
         db.flush()
-        config_str = generate_config(db)
-        apply_config(config_str)
         
-        # Sync UFW rules
-        if db_inbound.enable:
-            ufw_allow_port(db_inbound.port)
-            if port_changed:
+        # Apply to local Xray/UFW only if affected
+        if was_local or is_local:
+            config_str = generate_config(db, node_id=1)
+            apply_config(config_str)
+            
+            # Sync UFW rules
+            if is_local:
+                if db_inbound.enable:
+                    ufw_allow_port(db_inbound.port)
+                    if port_changed or not was_local:
+                        ufw_delete_port(old_port, db, exclude_inbound_id=db_inbound.id)
+                else:
+                    ufw_delete_port(db_inbound.port, db, exclude_inbound_id=db_inbound.id)
+                    if port_changed:
+                        ufw_delete_port(old_port, db, exclude_inbound_id=db_inbound.id)
+            else:
+                # Was local, now remote. Delete all local ports.
                 ufw_delete_port(old_port, db, exclude_inbound_id=db_inbound.id)
-        else:
-            ufw_delete_port(db_inbound.port, db, exclude_inbound_id=db_inbound.id)
-            if port_changed:
-                ufw_delete_port(old_port, db, exclude_inbound_id=db_inbound.id)
-                
+                if port_changed:
+                    ufw_delete_port(db_inbound.port, db, exclude_inbound_id=db_inbound.id)
+                    
         db.commit()
     except Exception as e:
         db.rollback()
@@ -319,17 +364,19 @@ def delete_inbound(
             detail="Inbound bulunamadı."
         )
 
+    is_local = db_inbound.node_id is None or db_inbound.node_id == 1
     port_to_delete = db_inbound.port
     db.delete(db_inbound)
 
     try:
         db.flush()
-        config_str = generate_config(db)
-        apply_config(config_str)
-        
-        # Remove UFW rule if no other inbound uses this port
-        ufw_delete_port(port_to_delete, db)
-        
+        if is_local:
+            config_str = generate_config(db, node_id=1)
+            apply_config(config_str)
+            
+            # Remove UFW rule if no other inbound uses this port locally
+            ufw_delete_port(port_to_delete, db)
+            
         db.commit()
     except Exception as e:
         db.rollback()
@@ -353,12 +400,21 @@ def toggle_inbound(
             detail="Inbound bulunamadı."
         )
 
+    is_local = db_inbound.node_id is None or db_inbound.node_id == 1
     db_inbound.enable = not db_inbound.enable
 
     try:
         db.flush()
-        config_str = generate_config(db)
-        apply_config(config_str)
+        if is_local:
+            config_str = generate_config(db, node_id=1)
+            apply_config(config_str)
+            
+            # Sync UFW rules
+            if db_inbound.enable:
+                ufw_allow_port(db_inbound.port)
+            else:
+                ufw_delete_port(db_inbound.port, db)
+                
         db.commit()
     except Exception as e:
         db.rollback()

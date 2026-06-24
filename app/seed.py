@@ -72,6 +72,14 @@ def seed_db():
                 db.add(models.SystemSetting(key=k, value=v))
                 print(f"--> Varsayılan ayar oluşturuldu: {k} = '{v}'")
         db.commit()
+
+        # Seed local node
+        local_node_exists = db.query(models.Node).filter(models.Node.id == 1).first()
+        if not local_node_exists:
+            local_node = models.Node(id=1, name="Local", host="localhost", port=22, username="root", is_active=True)
+            db.add(local_node)
+            db.commit()
+            print("--> Varsayılan Yerel Düğüm (Local Node) oluşturuldu.")
     except Exception as e:
         print(f"HATA: Seed işlemi sırasında bir sorun oluştu: {e}")
         db.rollback()

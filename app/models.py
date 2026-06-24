@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Boolean, Float, ForeignKey
+from datetime import datetime
+from sqlalchemy import Column, Integer, BigInteger, String, Boolean, Float, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -17,7 +18,7 @@ class Inbound(Base):
     id = Column(Integer, primary_key=True, index=True)
     remark = Column(String, nullable=True)
     protocol = Column(String, nullable=False)
-    port = Column(Integer, unique=True, nullable=False, index=True)
+    port = Column(Integer, nullable=False, index=True)
     settings = Column(String, nullable=True)          # JSON string
     stream_settings = Column(String, nullable=True)   # JSON string
     enable = Column(Boolean, default=True, nullable=False)
@@ -32,9 +33,11 @@ class Inbound(Base):
     ws_host = Column(String, nullable=True)
     sniffing_enabled = Column(Boolean, default=True, nullable=False)
     grpc_service_name = Column(String, nullable=True)
+    node_id = Column(Integer, ForeignKey("nodes.id"), nullable=True)
     
     # Relationship to clients
     clients = relationship("Client", back_populates="inbound", cascade="all, delete-orphan")
+    node = relationship("Node", back_populates="inbounds")
 
 class Client(Base):
     __tablename__ = "clients"
@@ -71,4 +74,23 @@ class SystemSetting(Base):
     
     key = Column(String, primary_key=True, index=True)
     value = Column(String, nullable=True)
+
+class Node(Base):
+    __tablename__ = "nodes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)          # "Ana Sunucu", "Almanya-1" vb.
+    host = Column(String, nullable=False)          # IP veya domain
+    port = Column(Integer, default=22)             # SSH port
+    username = Column(String, default="root")      # SSH kullanıcı
+    password = Column(String, nullable=True)       # Fernet ile şifrelenmiş
+    ssh_key = Column(Text, nullable=True)          # SSH private key (şifreli)
+    xray_config_path = Column(String, default="/usr/local/etc/xray/config.json")
+    panel_port = Column(Integer, nullable=True)    # Node'un panel portu (varsa)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_seen = Column(DateTime, nullable=True)    # Son başarılı bağlantı
+    
+    # İlişki
+    inbounds = relationship("Inbound", back_populates="node")
 

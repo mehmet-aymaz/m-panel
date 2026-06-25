@@ -283,6 +283,39 @@ def is_xray_config_valid(config_path: str) -> tuple[bool, str]:
         # If xray executable is not found or fails to run (e.g. on Windows/Dev), assume valid config
         return True, f"Xray test edilemedi (xray çalıştırılamadı): {e}"
 
+def copy_certificates():
+    # Try to find a valid certificate from Let's Encrypt directories
+    cert_src_dir = "/etc/letsencrypt/live/panel.mehmetaymaz.com.tr"
+    if not os.path.exists(os.path.join(cert_src_dir, "fullchain.pem")):
+        cert_src_dir = "/etc/letsencrypt/live/mehmetaymaz.com.tr"
+        if not os.path.exists(os.path.join(cert_src_dir, "fullchain.pem")):
+            live_dir = "/etc/letsencrypt/live"
+            if os.path.exists(live_dir):
+                try:
+                    dirs = [d for d in os.listdir(live_dir) if os.path.isdir(os.path.join(live_dir, d))]
+                    for d in dirs:
+                        if os.path.exists(os.path.join(live_dir, d, "fullchain.pem")):
+                            cert_src_dir = os.path.join(live_dir, d)
+                            break
+                except Exception:
+                    pass
+
+    try:
+        os.makedirs("/usr/local/etc/xray", exist_ok=True)
+        src_fullchain = os.path.join(cert_src_dir, "fullchain.pem")
+        src_privkey = os.path.join(cert_src_dir, "privkey.pem")
+        
+        if os.path.exists(src_fullchain) and os.path.exists(src_privkey):
+            shutil.copy2(src_fullchain, "/usr/local/etc/xray/fullchain.pem")
+            shutil.copy2(src_privkey, "/usr/local/etc/xray/privkey.pem")
+            os.chmod("/usr/local/etc/xray/fullchain.pem", 0o644)
+            os.chmod("/usr/local/etc/xray/privkey.pem", 0o644)
+            print(f"Successfully copied certificates from {cert_src_dir} to /usr/local/etc/xray/")
+        else:
+            print(f"Warning: Certificates not found in source directory: {cert_src_dir}")
+    except Exception as e:
+        print(f"Warning: Failed to copy certificates: {e}")
+
 def apply_config(config_str: str) -> bool:
     # 1. Backup existing config
     backup_created = False
@@ -304,6 +337,9 @@ def apply_config(config_str: str) -> bool:
         if backup_created:
             shutil.copy2(XRAY_BACKUP_PATH, XRAY_CONFIG_PATH)
         raise RuntimeError(f"Xray config dosyası yazılamadı: {e}")
+
+    # Copy certificates before validation so validation succeeds
+    copy_certificates()
 
     # 2.5 Validate configuration
     valid, validation_err = is_xray_config_valid(XRAY_CONFIG_PATH)
@@ -410,13 +446,7 @@ def rebuild_and_apply_xray_config():
     db = SessionLocal()
     try:
         # Copy Let's Encrypt certificates to Xray directory and set permissions
-        try:
-            shutil.copy2("/etc/letsencrypt/live/panel.mehmetaymaz.com.tr/fullchain.pem", "/usr/local/etc/xray/fullchain.pem")
-            shutil.copy2("/etc/letsencrypt/live/panel.mehmetaymaz.com.tr/privkey.pem", "/usr/local/etc/xray/privkey.pem")
-            os.chmod("/usr/local/etc/xray/fullchain.pem", 0o644)
-            os.chmod("/usr/local/etc/xray/privkey.pem", 0o644)
-        except Exception as e:
-            print(f"Warning: Failed to copy certificates: {e}")
+        copy_certificates()
 
         # Automatically allow enabled inbound ports in firewall (local only)
         active_inbounds = db.query(models.Inbound).filter(

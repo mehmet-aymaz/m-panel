@@ -1,59 +1,73 @@
-# M-Panel
+# M-Panel 🎛️
 
-Modern, açık kaynak VPN/proxy yönetim paneli. Xray-core tabanlı, 3x-ui alternatifi.
+Modern, açık kaynak kodlu VPN/Proxy yönetim paneli ve mobil uygulaması. Xray-core tabanlı olup, 3x-ui paneline modern ve mobil destekli güçlü bir alternatiftir.
 
-## Özellikler
-- VLESS, VMess, Trojan, Shadowsocks protokol desteği
-- Gerçek zamanlı CPU/RAM/Disk izleme
-- Subscription sistemi
-- Telegram bot entegrasyonu
-- API token sistemi
-- Karanlık/Açık tema
-- Türkçe + İngilizce dil desteği
-- Panel içi otomatik güncelleme
+Bu depo hem **Web Yönetim Panelini** hem de **Flutter Mobil Uygulamasını** içermektedir.
 
-## Kurulum (Tek Komut)
+---
+
+## 📂 Proje Yapısı (Project Structure)
+
+- **`app/`**: Python FastAPI tabanlı backend servis kodları.
+- **`frontend/`**: Vite + React tabanlı web yönetim arayüzü.
+- **`mobile/`**: Flutter tabanlı mobil istemci uygulaması (Android/iOS).
+- **`install.sh`**: Sunucu kurulum scripti.
+
+---
+
+## 🌐 1. Web Yönetim Paneli (M-Panel Web)
+
+### ✨ Özellikler (Features)
+- **Protokol Desteği:** VLESS, VMess, Trojan, Shadowsocks protokol desteği.
+- **Gerçek Zamanlı İzleme:** Anlık CPU, RAM, Disk, Swap ve ağ trafiği kullanımı.
+- **Abonelik (Subscription) Yönetimi:** Kullanıcılara özel kota ve süre limitli abonelik linkleri.
+- **Telegram Bot Entegrasyonu:** Bot üzerinden trafik izleme, kullanıcı bildirimleri ve yönetim.
+- **API Token Sistemi:** Üçüncü parti entegrasyonlar için güvenli API erişimi.
+- **Modern Arayüz:** Karanlık ve açık tema destekli, akıcı kullanıcı deneyimi.
+
+### 🚀 Sunucu Kurulumu (Server Installation - One Command)
+Ubuntu veya Debian tabanlı sunucunuzda aşağıdaki komut ile tek tıkla kurulum yapabilirsiniz:
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/mehmet-aymaz/m-panel/main/install.sh)
 ```
 
-## Gereksinimler
-- Ubuntu 20.04/22.04/24.04 veya Debian 10/11/12
-- Root erişimi
-- Minimum 1GB RAM
-
-## Kaldırma
+### 🧹 Kaldırma (Uninstall)
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/mehmet-aymaz/m-panel/main/install.sh) --uninstall
 ```
 
 ---
 
-# M-Panel (English)
+## 📱 2. Mobil Uygulama (M-Panel Mobile)
 
-Modern open source VPN/proxy management panel. Xray-core based, 3x-ui alternative.
+FastAPI sunucunuza uzaktan bağlanarak sunucu ve kullanıcı yönetimini cebinizden yapmanızı sağlayan modern bir **Flutter** uygulamasıdır.
 
-## Features
-- VLESS, VMess, Trojan, Shadowsocks protocol support
-- Real-time CPU/RAM/Disk monitoring
-- Subscription system
-- Telegram bot integration
-- API token system
-- Dark/Light theme
-- Turkish + English language support
-- In-panel auto update
+### ✨ Özellikler (Features)
+- 🔐 **JWT Yetkilendirme & 2FA:** Güvenli giriş ve iki aşamalı doğrulama desteği.
+- 📊 **Cepte Sunucu Takibi:** CPU, RAM, Disk, anlık indirme/yükleme hız grafikleri.
+- ⚙️ **Uzaktan Servis Yönetimi:** Xray servisini başlatma, durdurma ve yeniden başlatma.
+- 🌐 **Inbound & Kullanıcı Yönetimi:** Telefonunuzdan yeni giriş portları (VLESS/VMess/Trojan) oluşturma ve kullanıcılara ait QR kodları anında paylaşma.
+- 🎨 **Çoklu Tema:** Cyberpunk, Dracula, Nord, Emerald gibi 7 farklı görsel tema seçeneği.
 
-## Installation (One Command)
-```bash
-bash <(curl -s https://raw.githubusercontent.com/mehmet-aymaz/m-panel/main/install.sh)
-```
+### 🛠️ Geliştirici Ortamı Kurulumu (Mobile Local Setup)
+1. **`mobile` klasörüne geçiş yapın:**
+   ```bash
+   cd mobile
+   ```
+2. **Flutter bağımlılıklarını indirin:**
+   ```bash
+   flutter pub get
+   ```
+3. **Uygulamayı çalıştırın:**
+   ```bash
+   flutter run
+   ```
 
-## Requirements
-- Ubuntu 20.04/22.04/24.04 or Debian 10/11/12
-- Root access
-- Minimum 1GB RAM
+---
 
-## Uninstall
-```bash
-bash <(curl -s https://raw.githubusercontent.com/mehmet-aymaz/m-panel/main/install.sh) --uninstall
-```
+## 🔐 Güvenlik (Security)
+* Tüm hassas API anahtarları mobil cihazda Android Keystore ve iOS Keychain tabanlı `flutter_secure_storage` kullanılarak şifreli tutulur.
+* Sunucu veritabanı sorguları SQL injection açıklarına karşı parametrik olarak korunmaktadır.
+
+## 📄 Lisans (License)
+Bu proje **MIT Lisansı** ile lisanslanmıştır.

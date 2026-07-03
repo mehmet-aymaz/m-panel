@@ -80,13 +80,23 @@ class Node(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)          # "Ana Sunucu", "Almanya-1" vb.
-    host = Column(String, nullable=False)          # IP veya domain
+    
+    # SSH alanları (geriye dönük uyumluluk için korunuyor)
+    host = Column(String, nullable=False, default="localhost")  # IP veya domain
     port = Column(Integer, default=22)             # SSH port
     username = Column(String, default="root")      # SSH kullanıcı
-    password = Column(String, nullable=True)       # Fernet ile şifrelenmiş
+    password = Column(String, nullable=True)       # Fernet ile şifrelenmiş SSH şifre
     ssh_key = Column(Text, nullable=True)          # SSH private key (şifreli)
     xray_config_path = Column(String, default="/usr/local/etc/xray/config.json")
     panel_port = Column(Integer, nullable=True)    # Node'un panel portu (varsa)
+
+    # 3x-ui API alanları (yeni)
+    node_type = Column(String, default="ssh")      # 'ssh' veya 'xui_api'
+    url = Column(String, nullable=True)            # Örn: https://wmehmet.web.tr:2053
+    xui_username = Column(String, nullable=True)   # 3x-ui login kullanıcı adı
+    xui_password = Column(String, nullable=True)   # Fernet ile şifrelenmiş 3x-ui şifre
+    last_status = Column(String, default="unknown") # 'unknown'/'online'/'offline'/'error'
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, nullable=True)    # Son başarılı bağlantı

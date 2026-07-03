@@ -124,7 +124,20 @@ export const api = {
   updateNode: (id, data) => apiFetch(`/nodes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteNode: (id) => apiFetch(`/nodes/${id}`, { method: 'DELETE' }),
   testNode: (id) => apiFetch(`/nodes/${id}/test`, { method: 'POST' }),
+  testNodeDirect: (data) => apiFetch('/nodes/test-connection-direct', { method: 'POST', body: JSON.stringify(data) }),
   getNodeStats: (id) => apiFetch(`/nodes/${id}/stats`),
-  syncNode: (id) => apiFetch(`/nodes/${id}/sync`, { method: 'POST' })
+  syncNode: (id) => apiFetch(`/nodes/${id}/sync`, { method: 'POST' }),
+
+  // 3x-ui: Node Inbound Yönetimi
+  getNodeInbounds: (nodeId) => apiFetch(`/nodes/${nodeId}/inbounds/`),
+  addNodeInbound: (nodeId, data) => apiFetch(`/nodes/${nodeId}/inbounds/`, { method: 'POST', body: JSON.stringify(data) }),
+  updateNodeInbound: (nodeId, iid, data) => apiFetch(`/nodes/${nodeId}/inbounds/${iid}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNodeInbound: (nodeId, iid) => apiFetch(`/nodes/${nodeId}/inbounds/${iid}`, { method: 'DELETE' }),
+
+  // 3x-ui: Node Client (Kullanıcı) Yönetimi
+  addNodeClient: (nodeId, iid, data) => apiFetch(`/nodes/${nodeId}/inbounds/${iid}/clients/`, { method: 'POST', body: JSON.stringify(data) }),
+  updateNodeClient: (nodeId, iid, email, data) => apiFetch(`/nodes/${nodeId}/inbounds/${iid}/clients/${encodeURIComponent(email)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNodeClient: (nodeId, iid, email) => apiFetch(`/nodes/${nodeId}/inbounds/${iid}/clients/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  resetNodeClientTraffic: (nodeId, iid, email) => apiFetch(`/nodes/${nodeId}/inbounds/${iid}/clients/${encodeURIComponent(email)}/reset`, { method: 'POST' }),
 };
 

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Inbounds from './pages/Inbounds';
 import Clients from './pages/Clients';
 import Nodes from './pages/Nodes';
+import NodeDetail from './pages/NodeDetail';
 import Logs from './pages/Logs';
 import APITokens from './pages/APITokens';
 import Settings from './pages/Settings';
@@ -41,6 +42,7 @@ function App() {
             <Route path="inbounds" element={<Inbounds />} />
             <Route path="clients" element={<Clients />} />
             <Route path="nodes" element={<Nodes />} />
+            <Route path="nodes/:id" element={<NodeDetail />} />
             <Route path="logs" element={<Logs />} />
             <Route path="api-tokens" element={<APITokens />} />
             <Route path="settings" element={<Settings />} />

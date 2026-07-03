@@ -49,6 +49,12 @@ FastAPI sunucunuza uzaktan bağlanarak sunucu ve kullanıcı yönetimini cebiniz
 - 🌐 **Inbound & Kullanıcı Yönetimi:** Telefonunuzdan yeni giriş portları (VLESS/VMess/Trojan) oluşturma ve kullanıcılara ait QR kodları anında paylaşma.
 - 🎨 **Çoklu Tema:** Cyberpunk, Dracula, Nord, Emerald gibi 7 farklı görsel tema seçeneği.
 
+### 📥 Mobil Uygulama İndir (Download APK)
+Mobil uygulamayı doğrudan cihazınıza kurmak için aşağıdaki hazır derlenmiş APK dosyalarından cihazınıza uygun olanı indirebilirsiniz:
+* 📲 **[M-Panel Mobil APK (Evrensel / Tüm Cihazlar)](https://github.com/mehmet-aymaz/m-panel/raw/main/mobile/release/app-release.apk)** (~22.2 MB)
+* ⚡ **[M-Panel Mobil APK (ARM64-v8a - Yeni Nesil Cihazlar)](https://github.com/mehmet-aymaz/m-panel/raw/main/mobile/release/app-arm64-v8a-release.apk)** (~8.2 MB - **Önerilen**)
+* 📱 **[M-Panel Mobil APK (ARMEABI-v7a - Eski Nesil Cihazlar)](https://github.com/mehmet-aymaz/m-panel/raw/main/mobile/release/app-armeabi-v7a-release.apk)** (~7.8 MB)
+
 ### 🛠️ Geliştirici Ortamı Kurulumu (Mobile Local Setup)
 1. **`mobile` klasörüne geçiş yapın:**
    ```bash
